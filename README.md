@@ -1,1 +1,1 @@
-# clap-sh
+# esh - Embeddable Shell

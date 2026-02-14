@@ -1,18 +1,24 @@
 [package]
-name = "clap-sh"
+name = "esh"
 version = "0.1.0"
 edition = "2024"
 
 
 [lib]
-name = "clap_sh" # Users will use 'use my_tool_lib;'
+name = "esh"
 path = "src/lib.rs"
 
 [[bin]]
-name = "clapsh"
+name = "esh"
 path = "src/main.rs"
 
 
 [dependencies]
+clap = { version = "4.5.58", features = ["derive", "string"] }
 pretty-hex = "0.4.1"
 thiserror = "2.0.18"
+tracing = "0.1.44"
+tracing-log = "0.2.0"
+tracing-panic = "0.1.2"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+vfs = "0.12.2"
