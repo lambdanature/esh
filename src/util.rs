@@ -38,7 +38,7 @@ pub fn get_cmd_fallback() -> &'static String {
 #[macro_export]
 macro_rules! die {
     ($fmt:literal, $($arg:tt)*) => {{
-        tracig::error!("Fatal error, exiting: {}", format!($fmt, $($arg)*));
+        tracing::error!("Fatal error, exiting: {}", format!($fmt, $($arg)*));
         std::process::exit(1);
     }};
 
