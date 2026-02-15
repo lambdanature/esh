@@ -1,5 +1,5 @@
 // use vfs::VfsPath;
-// PhysicalFS
+
 use clap::{ArgAction, ArgMatches, Args, Command, FromArgMatches, Parser, Subcommand};
 
 use std::ffi::OsString;
@@ -24,31 +24,22 @@ pub trait Shell {
     fn run_args(&self, args: std::slice::Iter<OsString>) -> ExitCode;
 }
 
-// Note: Internally, the agumentor being an Arc<> refcounted closure is
-//       overkill, but we leave it in
-//           (a) for symmetry purposes with Handler and
-//           (b) since we don't know if an external caller might
-//               need to register a closure.
-type Augmentor = Arc<dyn Fn(Command) -> Command>;
-type Handler = Arc<dyn Fn(&dyn Shell, &ArgMatches) -> CommandResult>;
+type Augmentor = Arc<dyn Fn(Command) -> Command + Send + Sync>;
+type Handler = Arc<dyn Fn(&dyn Shell, &ArgMatches) -> CommandResult + Send + Sync>;
 
-#[derive(Clone)]
+#[derive(Default, Clone)]
 struct CommandGroup {
-    args: Augmentor,
-    cmds: Augmentor,
-    handler: Handler,
-}
-
-pub fn noop_augmentor(cmd: Command) -> Command {
-    cmd
+    args: Vec<Augmentor>,
+    cmds: Vec<Augmentor>,
+    hnds: Vec<Handler>,
 }
 
 struct BasicShell {
     name: String,
     pkg_name: String,
     version: String,
-    cli_commands: RwLock<Vec<CommandGroup>>,
-    shell_commands: RwLock<Vec<CommandGroup>>,
+    cli_group: RwLock<CommandGroup>,
+    shell_group: RwLock<CommandGroup>,
 }
 
 #[derive(Subcommand)]
@@ -104,59 +95,48 @@ fn handle_basic_shared_command(sh: &BasicShell, matches: &ArgMatches) -> Command
 }
 
 impl BasicShell {
-    fn new(name: String, pkg_name: String, version: String) -> Arc<BasicShell> {
+    fn new(
+        name: String,
+        pkg_name: String,
+        version: String,
+        shell_group: CommandGroup,
+        cli_group: CommandGroup,
+    ) -> Arc<BasicShell> {
         let sh = Arc::new(BasicShell {
-            shell_commands: RwLock::new(vec![]),
-            cli_commands: RwLock::new(vec![]),
             name,
             pkg_name,
             version,
+            shell_group: RwLock::new(shell_group),
+            cli_group: RwLock::new(cli_group),
         });
 
-        let noop = Arc::new(noop_augmentor);
-        let shared_cmd_augmentor = Arc::new(BasicSharedCommands::augment_subcommands);
-        let shared_cmd_sh = sh.clone();
-        let shared_cmd_handler: Handler =
-            Arc::new(move |_, m| handle_basic_shared_command(&shared_cmd_sh, m));
+        {
+            let sh_cap = sh.clone();
+            let cmds = Arc::new(BasicSharedCommands::augment_subcommands);
+            let handler: Handler = Arc::new(move |_, m| handle_basic_shared_command(&sh_cap, m));
+            sh.shell_group.write().unwrap().cmds.push(cmds.clone());
+            sh.shell_group.write().unwrap().hnds.push(handler.clone());
+            sh.cli_group.write().unwrap().cmds.push(cmds);
+            sh.cli_group.write().unwrap().hnds.push(handler);
+        }
 
-        let shell_cmd_augmentor = Arc::new(BasicShellCommands::augment_subcommands);
-        let shell_cmd_sh = sh.clone();
-        let shell_cmd_handler: Handler =
-            Arc::new(move |_, m| handle_basic_shell_command(&shell_cmd_sh, m));
+        {
+            let sh_cap = sh.clone();
+            let cmds = Arc::new(BasicShellCommands::augment_subcommands);
+            let handler: Handler = Arc::new(move |_, m| handle_basic_shell_command(&sh_cap, m));
+            sh.shell_group.write().unwrap().cmds.push(cmds);
+            sh.shell_group.write().unwrap().hnds.push(handler);
+        }
 
-        let cli_arg_augmentor = Arc::new(BasicCliArgs::augment_args);
-        let cli_cmd_augmentor = Arc::new(BasicCliCommands::augment_subcommands);
-        let cli_cmd_sh = sh.clone();
-        let cli_cmd_handler: Handler =
-            Arc::new(move |_, m| handle_basic_cli_command(&cli_cmd_sh, m));
-
-        // default internal shell commands and shared commands
-        sh.shell_commands.write().unwrap().extend([
-            CommandGroup {
-                args: noop.clone(),
-                cmds: shared_cmd_augmentor.clone(),
-                handler: shared_cmd_handler.clone(),
-            },
-            CommandGroup {
-                args: noop.clone(),
-                cmds: shell_cmd_augmentor.clone(),
-                handler: shell_cmd_handler.clone(),
-            },
-        ]);
-
-        // default external cli commands and shared commands
-        sh.cli_commands.write().unwrap().extend([
-            CommandGroup {
-                args: noop.clone(),
-                cmds: shared_cmd_augmentor.clone(),
-                handler: shared_cmd_handler.clone(),
-            },
-            CommandGroup {
-                args: cli_arg_augmentor,
-                cmds: cli_cmd_augmentor.clone(),
-                handler: cli_cmd_handler.clone(),
-            },
-        ]);
+        {
+            let sh_cap = sh.clone();
+            let args = Arc::new(BasicCliArgs::augment_args);
+            let cmds = Arc::new(BasicCliCommands::augment_subcommands);
+            let handler: Handler = Arc::new(move |_, m| handle_basic_cli_command(&sh_cap, m));
+            sh.cli_group.write().unwrap().args.push(args);
+            sh.cli_group.write().unwrap().cmds.push(cmds);
+            sh.cli_group.write().unwrap().hnds.push(handler);
+        }
 
         sh
     }
@@ -170,24 +150,23 @@ impl BasicShell {
     //     die!(self, "not implemented: execute_args");
     // }
 
-    fn add_shell_commands(&self, cmds: CommandGroup) {
-        self.shell_commands.write().unwrap().push(cmds);
-    }
-
-    fn add_cli_commands(&self, cmds: CommandGroup) {
-        self.cli_commands.write().unwrap().push(cmds);
-    }
-
     fn build_cmd(&self) -> Command {
-        let mut cmd = Command::new(self.name.clone())
-            .subcommand_required(true)
-            .arg_required_else_help(true);
+        let mut cmd = Command::new(self.name.clone());
+        //    .subcommand_required(true)
+        //    .arg_required_else_help(true);
 
-        // Run all registered cmd augmentors - this is where we register args and subcommands
-        for cmd_group in self.cli_commands.read().unwrap().iter() {
-            cmd = (cmd_group.args)(cmd); // register args for main command
-            cmd = (cmd_group.cmds)(cmd); // register subcommands
+        let cli_group = self.cli_group.read().unwrap();
+
+        // Run all registered arg augmentors - this is where we register args
+        for args in &cli_group.args {
+            cmd = (args)(cmd);
         }
+
+        // Run all registered cmd augmentors - this is where we register subcommands
+        for cmds in &cli_group.cmds {
+            cmd = (cmds)(cmd);
+        }
+
         cmd
     }
 }
@@ -227,8 +206,8 @@ impl Shell for BasicShell {
                     );
                 });
 
-                for cmds in self.cli_commands.read().unwrap().iter() {
-                    match (cmds.handler)(self, &matches) {
+                for handler in &self.cli_group.read().unwrap().hnds {
+                    match (handler)(self, &matches) {
                         CommandResult::Ok => return ExitCode::SUCCESS,
                         CommandResult::Error => return ExitCode::FAILURE,
                         CommandResult::ExitShell(code) => return ExitCode::from(code),
@@ -261,10 +240,9 @@ pub struct ShellConfig {
     name: String,
     pkg_name: String,
     version: String,
-    cli_commands: Vec<CommandGroup>,
-    shell_commands: Vec<CommandGroup>,
-    shared_commands: Vec<CommandGroup>,
-    // root: Option<VfsPath>,
+    cli_group: CommandGroup,
+    shell_group: CommandGroup,
+    // vfs_root: Option<VfsPath>,
 }
 
 #[macro_export]
@@ -289,9 +267,8 @@ impl ShellConfig {
             name: name.into(),
             pkg_name: pkg_name.into(),
             version: version.into(),
-            cli_commands: vec![],
-            shell_commands: vec![],
-            shared_commands: vec![],
+            cli_group: CommandGroup::default(),
+            shell_group: CommandGroup::default(),
             // vfs_root: None,
         }
     }
@@ -301,60 +278,42 @@ impl ShellConfig {
         self
     }
 
-    pub fn cli_commands(
-        mut self,
-        augmentor: impl Fn(Command) -> Command + 'static,
-        handler: impl Fn(&dyn Shell, &ArgMatches) -> CommandResult + 'static,
-    ) -> Self {
-        self.cli_commands.push(CommandGroup {
-            args: Arc::new(noop_augmentor),
-            cmds: Arc::new(augmentor),
-            handler: Arc::new(handler),
-        });
-        self
+    pub fn cli_args(mut self, args: Augmentor) {
+        self.cli_group.args.push(args);
     }
 
-    pub fn shell_commands(
-        mut self,
-        augmentor: impl Fn(Command) -> Command + 'static,
-        handler: impl Fn(&dyn Shell, &ArgMatches) -> CommandResult + 'static,
-    ) -> Self {
-        self.shell_commands.push(CommandGroup {
-            args: Arc::new(noop_augmentor),
-            cmds: Arc::new(augmentor),
-            handler: Arc::new(handler),
-        });
-        self
+    pub fn cli_cmds(mut self, cmds: Augmentor) {
+        self.cli_group.cmds.push(cmds);
     }
 
-    pub fn shared_commands(
-        mut self,
-        augmentor: impl Fn(Command) -> Command + 'static,
-        handler: impl Fn(&dyn Shell, &ArgMatches) -> CommandResult + 'static,
-    ) -> Self {
-        self.shared_commands.push(CommandGroup {
-            args: Arc::new(noop_augmentor),
-            cmds: Arc::new(augmentor),
-            handler: Arc::new(handler),
-        });
-        self
+    pub fn cli_handler(mut self, handler: Handler) {
+        self.cli_group.hnds.push(handler);
     }
+
+    pub fn shell_args(mut self, args: Augmentor) {
+        self.shell_group.args.push(args);
+    }
+
+    pub fn shell_cmds(mut self, cmds: Augmentor) {
+        self.shell_group.cmds.push(cmds);
+    }
+
+    pub fn shell_handler(mut self, handler: Handler) {
+        self.shell_group.hnds.push(handler);
+    }
+
+    // pub fn vfs(mut self, vfs_root: VfsPath) {
+    //     self.vfs_root = Some(vfs_root);
+    // }
 
     pub fn build(self) -> Box<dyn Shell + 'static> {
-        let sh = BasicShell::new(self.name, self.pkg_name, self.version);
-
-        for cmds in self.cli_commands {
-            sh.add_cli_commands(cmds);
-        }
-
-        for cmds in self.shell_commands {
-            sh.add_shell_commands(cmds);
-        }
-
-        for cmds in self.shared_commands {
-            sh.add_cli_commands(cmds.clone());
-            sh.add_shell_commands(cmds);
-        }
+        let sh = BasicShell::new(
+            self.name,
+            self.pkg_name,
+            self.version,
+            self.shell_group,
+            self.cli_group,
+        );
 
         Box::new(sh) as Box<dyn Shell>
     }
