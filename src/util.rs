@@ -2,7 +2,9 @@
 // TODO: Enrich log!() output with env!("CARGO_PKG_NAME") / env!("CARGO_PKG_VERSION") /
 //       file!() / line!() / column!()
 
+#[allow(unused_imports)]
 use tracing::{debug, error, info, trace, warn};
+
 use tracing_subscriber::{
     filter::{EnvFilter, LevelFilter},
     prelude::*,
@@ -35,76 +37,19 @@ pub fn get_cmd_fallback() -> &'static String {
 
 #[macro_export]
 macro_rules! die {
-    ($sh:expr, $fmt:literal, $($arg:tt)*) => {{
-        $sh.die(format_args!($fmt, $($arg)*));
-    }};
-
-    ($sh:expr, $msg:literal) => {{
-        $sh.die(format_args!("{}", $msg));
-    }};
-
     ($fmt:literal, $($arg:tt)*) => {{
-        let basename = $crate::get_cmd_fallback();
-        eprintln!("{}: Fatal error: {}", basename, format!($fmt, $($arg)*));
+        tracig::error!("Fatal error, exiting: {}", format!($fmt, $($arg)*));
         std::process::exit(1);
     }};
 
     ($msg:literal) => {{
-        let basename = $crate::get_cmd_fallback();
-        eprintln!("{}: Fatal error: {}", basename, $msg);
+        tracing::error!("Fatal error, exiting: {}", $msg);
         std::process::exit(1);
     }};
 
     () => {{
-        let basename = $crate::get_cmd_fallback();
-        eprintln!("{}: Fatal error, program terminated unexpectedly", basename);
+        tracing::error!("Fatal error, exiting");
         std::process::exit(1);
-    }};
-}
-
-#[macro_export]
-macro_rules! warn {
-    ($sh:expr, $fmt:literal, $($arg:tt)*) => {{
-        $sh.warn(format_args!($fmt, $($arg)*));
-    }};
-
-    ($sh:expr, $msg:literal) => {{
-        $sh.warn(format_args!("{}", $msg));
-    }};
-
-    ($fmt:literal, $($arg:tt)*) => {{
-        // let basename = get_cmd_basename();
-        // eprintln!("{}: {}", basename, format!($fmt, $($arg)*));
-        tracing::warn!("{}",  format!($fmt, $($arg)*));
-    }};
-
-    ($msg:literal) => {{
-        // let basename = get_cmd_basename();
-        // eprintln!("{}: {}", basename, $msg);
-        tracing::warn!("{}", $msg);
-    }};
-}
-
-#[macro_export]
-macro_rules! info {
-    ($sh:expr, $fmt:literal, $($arg:tt)*) => {{
-        $sh.info(format_args!($fmt, $($arg)*));
-    }};
-
-    ($sh:expr, $msg:literal) => {{
-        $sh.info(format_args!("{}", $msg));
-    }};
-
-    ($fmt:literal, $($arg:tt)*) => {{
-        // let basename = $crate::get_cmd_fallback();
-        // eprintln!("{}: {}", basename, format!($fmt, $($arg)*));
-        tracing::info!("{}",  format!($fmt, $($arg)*));
-    }};
-
-    ($msg:literal) => {{
-        // let basename = $crate::get_cmd_fallback();
-        // eprintln!("{}: {}", basename, $msg);
-        tracing::info!("{}", $msg);
     }};
 }
 
@@ -165,9 +110,8 @@ pub fn init_tracing(quiet: bool, verbose: u8) -> (bool, LevelFilter) {
             .compact(),
     );
 
-    if tracing::subscriber::set_global_default(subscriber).is_err() {
-        die!("INTERNAL ERROR: setting default tracing::subscriber failed");
-    }
+    tracing::subscriber::set_global_default(subscriber)
+        .expect("INTERNAL ERROR: setting default tracing::subscriber failed");
 
     let prev_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {

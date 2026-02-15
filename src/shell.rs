@@ -1,5 +1,3 @@
-// TODO: use log!() in BasicShell for die/warn/info
-
 // use vfs::VfsPath;
 // PhysicalFS
 use clap::{ArgAction, ArgMatches, Args, Command, FromArgMatches, Parser, Subcommand};
@@ -8,7 +6,10 @@ use std::process::ExitCode;
 use std::sync::{Arc, RwLock};
 
 #[allow(unused_imports)]
-use crate::{die, info, warn};
+use tracing::{debug, error, info, trace, warn};
+
+#[allow(unused_imports)]
+use crate::die;
 
 pub enum CommandResult {
     Ok,
@@ -20,9 +21,6 @@ pub enum CommandResult {
 pub trait Shell {
     fn run(&self) -> ExitCode;
     fn run_args(&self, args: std::slice::Iter<String>) -> ExitCode;
-    fn die(&self, args: std::fmt::Arguments);
-    fn warn(&self, args: std::fmt::Arguments);
-    fn info(&self, args: std::fmt::Arguments);
 }
 
 // Note: Internally, the agumentor being an Arc<> refcounted closure is
@@ -57,11 +55,10 @@ enum BasicCliCommands {
     Shell,
 }
 
-fn handle_basic_cli_command(sh: &BasicShell, matches: &ArgMatches) -> CommandResult {
+fn handle_basic_cli_command(_sh: &BasicShell, matches: &ArgMatches) -> CommandResult {
     match BasicCliCommands::from_arg_matches(matches) {
         Ok(BasicCliCommands::Shell) => {
-            die!(sh, "command 'shell' not implemented");
-            CommandResult::Error
+            die!("command 'shell' not implemented");
         }
         Err(_) => CommandResult::NotFound,
     }
@@ -98,7 +95,7 @@ enum BasicSharedCommands {
 fn handle_basic_shared_command(sh: &BasicShell, matches: &ArgMatches) -> CommandResult {
     match BasicSharedCommands::from_arg_matches(matches) {
         Ok(BasicSharedCommands::Version) => {
-            info!(sh, "version {} {}", sh.pkg_name, sh.version);
+            println!("version {} {}", sh.pkg_name, sh.version);
             CommandResult::Ok
         }
         Err(_) => CommandResult::NotFound,
@@ -212,7 +209,7 @@ impl Shell for BasicShell {
         match cmd.clone().try_get_matches_from(args) {
             Ok(matches) => {
                 INIT_LOGGING.call_once(|| {
-                    let (verbose, level_filter) = crate::init_tracing(
+                    let (_, level_filter) = crate::init_tracing(
                         matches.get_flag("quiet"),
                         matches.get_count("verbose"),
                     );
@@ -239,22 +236,9 @@ impl Shell for BasicShell {
         }
         // Fall-through, we haven't found suitable command handler
         if cmd.print_help().is_err() {
-            die!(self, "internal error, failed to print help");
+            die!("internal error, failed to print help");
         }
         ExitCode::FAILURE
-    }
-
-    fn die(&self, args: std::fmt::Arguments) {
-        eprintln!("{}: Fatal error: {}", self.name, args);
-        std::process::exit(1);
-    }
-
-    fn warn(&self, args: std::fmt::Arguments) {
-        eprintln!("{}: {}", self.name, args);
-    }
-
-    fn info(&self, args: std::fmt::Arguments) {
-        eprintln!("{}: {}", self.name, args);
     }
 }
 
@@ -264,15 +248,6 @@ impl Shell for Arc<BasicShell> {
     }
     fn run_args(&self, args: std::slice::Iter<String>) -> ExitCode {
         (**self).run_args(args)
-    }
-    fn die(&self, args: std::fmt::Arguments) {
-        (**self).die(args)
-    }
-    fn warn(&self, args: std::fmt::Arguments) {
-        (**self).warn(args)
-    }
-    fn info(&self, args: std::fmt::Arguments) {
-        (**self).info(args)
     }
 }
 
