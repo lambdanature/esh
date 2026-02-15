@@ -2,6 +2,7 @@
 // PhysicalFS
 use clap::{ArgAction, ArgMatches, Args, Command, FromArgMatches, Parser, Subcommand};
 
+use std::ffi::OsString;
 use std::process::ExitCode;
 use std::sync::{Arc, RwLock};
 
@@ -20,7 +21,7 @@ pub enum CommandResult {
 
 pub trait Shell {
     fn run(&self) -> ExitCode;
-    fn run_args(&self, args: std::slice::Iter<String>) -> ExitCode;
+    fn run_args(&self, args: std::slice::Iter<OsString>) -> ExitCode;
 }
 
 // Note: Internally, the agumentor being an Arc<> refcounted closure is
@@ -196,12 +197,16 @@ static INIT_LOGGING: Once = Once::new();
 
 impl Shell for BasicShell {
     fn run(&self) -> ExitCode {
-        let args: Vec<String> = std::env::args().collect();
-        // TODO: escape parsing
+        let mut args: Vec<OsString> = Vec::new();
+        for arg in std::env::args() {
+            if let Ok(parsed_arg) = crate::parse::shell_parse_arg(&arg) {
+                args.push(parsed_arg);
+            }
+        }
         self.run_args(args.iter())
     }
 
-    fn run_args(&self, args: std::slice::Iter<String>) -> ExitCode {
+    fn run_args(&self, args: std::slice::Iter<OsString>) -> ExitCode {
         // First, evaluate the actual command line using external argv.
         // Then we determine if we need to go into interactive mode or
         // directly execute a command from argv.
@@ -247,7 +252,7 @@ impl Shell for Arc<BasicShell> {
     fn run(&self) -> ExitCode {
         (**self).run()
     }
-    fn run_args(&self, args: std::slice::Iter<String>) -> ExitCode {
+    fn run_args(&self, args: std::slice::Iter<OsString>) -> ExitCode {
         (**self).run_args(args)
     }
 }

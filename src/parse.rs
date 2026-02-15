@@ -1,4 +1,8 @@
+use std::ffi::OsString;
 use std::iter::Peekable;
+
+// TODO: Port this to Windows and 16bit chars
+use std::os::unix::ffi::OsStringExt;
 use std::str::Chars;
 
 /// Errors that can occur when parsing a shell line.
@@ -44,13 +48,12 @@ pub enum ShellParseError {
 ///
 /// ```
 /// # use esh::{shell_parse_arg, ShellParseError};
-/// assert_eq!(shell_parse_arg(r"hello\nworld")?, b"hello\nworld");
-/// assert_eq!(shell_parse_arg(r"\x41\x42\x43")?, b"ABC");
-/// assert_eq!(shell_parse_arg(r"\xFF")?, b"\xff");
-/// assert_eq!(shell_parse_arg(r"\u{1f980}")?, "🦀".as_bytes());
+/// assert_eq!(shell_parse_arg(r"hello\nworld")?, "hello\nworld");
+/// assert_eq!(shell_parse_arg(r"\x41\x42\x43")?, "ABC");
+/// assert_eq!(shell_parse_arg(r"\u{1f980}")?, "🦀");
 /// # Ok::<(), ShellParseError>(())
 /// ```
-pub fn shell_parse_arg(input: &str) -> Result<Vec<u8>, ShellParseError> {
+pub fn shell_parse_arg(input: &str) -> Result<OsString, ShellParseError> {
     let mut chars = input.chars().peekable();
     let mut output = Vec::new();
     while let Some(c) = chars.next() {
@@ -59,7 +62,7 @@ pub fn shell_parse_arg(input: &str) -> Result<Vec<u8>, ShellParseError> {
             _ => push_char(&mut output, c),
         }
     }
-    Ok(output)
+    Ok(OsString::from_vec(output))
 }
 
 /// Inner double-quote parser that operates on a char iterator.
@@ -119,8 +122,8 @@ fn shell_parse_arg_inner(
 /// assert_eq!(args, vec!["🦀"]);
 /// # Ok::<(), ShellParseError>(())
 /// ```
-pub fn shell_parse_line(input: &str) -> Result<Vec<String>, ShellParseError> {
-    let mut words: Vec<String> = Vec::new();
+pub fn shell_parse_line(input: &str) -> Result<Vec<OsString>, ShellParseError> {
+    let mut words: Vec<OsString> = Vec::new();
     let mut current: Vec<u8> = Vec::new();
     let mut in_word = false;
     let mut chars = input.chars().peekable();
@@ -137,9 +140,7 @@ pub fn shell_parse_line(input: &str) -> Result<Vec<String>, ShellParseError> {
             State::Normal => match c {
                 ' ' | '\t' | '\n' | '\r' => {
                     if in_word {
-                        let s = String::from_utf8(std::mem::take(&mut current))
-                            .map_err(|_| ShellParseError::InvalidUtf8)?;
-                        words.push(s);
+                        words.push(OsString::from_vec(std::mem::take(&mut current)));
                         in_word = false;
                     }
                 }
@@ -182,8 +183,8 @@ pub fn shell_parse_line(input: &str) -> Result<Vec<String>, ShellParseError> {
     }
 
     if in_word {
-        let s = String::from_utf8(current).map_err(|_| ShellParseError::InvalidUtf8)?;
-        words.push(s);
+        // let s = String::from_utf8(current).map_err(|_| ShellParseError::InvalidUtf8)?;
+        words.push(OsString::from_vec(current));
     }
 
     Ok(words)
@@ -331,12 +332,15 @@ mod tests {
 
     #[test]
     fn empty_input() {
-        assert_eq!(shell_parse_line("").unwrap(), Vec::<String>::new());
+        assert_eq!(shell_parse_line("").unwrap(), Vec::<OsString>::new());
     }
 
     #[test]
     fn whitespace_only() {
-        assert_eq!(shell_parse_line("   \t\n  ").unwrap(), Vec::<String>::new());
+        assert_eq!(
+            shell_parse_line("   \t\n  ").unwrap(),
+            Vec::<OsString>::new()
+        );
     }
 
     #[test]
@@ -505,9 +509,12 @@ mod tests {
     }
 
     #[test]
-    fn hex_escape_high_byte_is_invalid_utf8_in_split() {
-        // \xFF alone is not valid UTF-8, so shell_parse_line rejects it
-        assert_eq!(shell_parse_line(r"\xFF"), Err(ShellParseError::InvalidUtf8));
+    fn hex_escape_high_byte_in_split() {
+        // \xFF is not valid UTF-8, but OsString can hold arbitrary bytes
+        assert_eq!(
+            shell_parse_line(r"\xFF").unwrap(),
+            vec![OsString::from_vec(vec![0xFF])],
+        );
     }
 
     // ---- hex escape via shell_parse_arg --------------------------------
@@ -515,14 +522,17 @@ mod tests {
     #[test]
     fn dq_hex_raw_byte() {
         // shell_parse_arg returns raw bytes — \xFF is byte 0xFF
-        assert_eq!(shell_parse_arg(r"\xFF").unwrap(), vec![0xFF]);
+        assert_eq!(
+            shell_parse_arg(r"\xFF").unwrap(),
+            OsString::from_vec(vec![0xFF])
+        );
     }
 
     #[test]
     fn dq_hex_high_bytes() {
         assert_eq!(
             shell_parse_arg(r"\x80\xFE\xFF").unwrap(),
-            vec![0x80, 0xFE, 0xFF],
+            OsString::from_vec(vec![0x80, 0xFE, 0xFF]),
         );
     }
 
@@ -576,7 +586,7 @@ mod tests {
     fn comment_at_start() {
         assert_eq!(
             shell_parse_line("# this is a comment").unwrap(),
-            Vec::<String>::new()
+            Vec::<OsString>::new()
         );
     }
 
@@ -605,40 +615,40 @@ mod tests {
 
     #[test]
     fn dq_parse_plain() {
-        assert_eq!(shell_parse_arg("hello world").unwrap(), b"hello world");
+        assert_eq!(shell_parse_arg("hello world").unwrap(), "hello world");
     }
 
     #[test]
     fn dq_parse_escapes() {
-        assert_eq!(shell_parse_arg(r"hello\nworld").unwrap(), b"hello\nworld");
+        assert_eq!(shell_parse_arg(r"hello\nworld").unwrap(), "hello\nworld");
     }
 
     #[test]
     fn dq_parse_hex() {
-        assert_eq!(shell_parse_arg(r"\x41\x42\x43").unwrap(), b"ABC");
+        assert_eq!(shell_parse_arg(r"\x41\x42\x43").unwrap(), "ABC");
     }
 
     #[test]
     fn dq_parse_unicode() {
-        assert_eq!(shell_parse_arg(r"\u{1f980}").unwrap(), "🦀".as_bytes());
+        assert_eq!(shell_parse_arg(r"\u{1f980}").unwrap(), "🦀");
     }
 
     #[test]
     fn dq_parse_quotes_are_literal() {
         assert_eq!(
             shell_parse_arg(r#"hello "world""#).unwrap(),
-            br#"hello "world""#.to_vec(),
+            r#"hello "world""#,
         );
     }
 
     #[test]
     fn dq_parse_unknown_escape_preserved() {
-        assert_eq!(shell_parse_arg(r"\z").unwrap(), br"\z".to_vec());
+        assert_eq!(shell_parse_arg(r"\z").unwrap(), r"\z");
     }
 
     #[test]
     fn dq_parse_empty() {
-        assert_eq!(shell_parse_arg("").unwrap(), b"");
+        assert_eq!(shell_parse_arg("").unwrap(), "");
     }
 
     #[test]
