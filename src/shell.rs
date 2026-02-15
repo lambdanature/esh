@@ -112,6 +112,7 @@ impl BasicShell {
             version,
         });
 
+        let noop = Arc::new(noop_augmentor);
         let shared_cmd_augmentor = Arc::new(BasicSharedCommands::augment_subcommands);
         let shared_cmd_sh = sh.clone();
         let shared_cmd_handler: Handler =
@@ -131,12 +132,12 @@ impl BasicShell {
         // default internal shell commands and shared commands
         sh.shell_commands.write().unwrap().extend([
             CommandGroup {
-                args: Arc::new(noop_augmentor),
+                args: noop.clone(),
                 cmds: shared_cmd_augmentor.clone(),
                 handler: shared_cmd_handler.clone(),
             },
             CommandGroup {
-                args: Arc::new(noop_augmentor),
+                args: noop.clone(),
                 cmds: shell_cmd_augmentor.clone(),
                 handler: shell_cmd_handler.clone(),
             },
@@ -145,7 +146,7 @@ impl BasicShell {
         // default external cli commands and shared commands
         sh.cli_commands.write().unwrap().extend([
             CommandGroup {
-                args: Arc::new(noop_augmentor),
+                args: noop.clone(),
                 cmds: shared_cmd_augmentor.clone(),
                 handler: shared_cmd_handler.clone(),
             },
