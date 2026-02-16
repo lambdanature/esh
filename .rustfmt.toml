@@ -1,0 +1,18 @@
+# Use the edition matching your Cargo.toml
+edition = "2024"
+
+# Consistency & Readability
+newline_style = "Unix"
+use_small_heuristics = "Default"
+# group_imports = "StdExternalCrate"
+
+# Code Structure
+max_width = 100
+tab_spaces = 4
+use_field_init_shorthand = true
+use_try_shorthand = true
+
+# Formatting behavior
+# format_code_in_doc_comments = true
+reorder_modules = true
+reorder_imports = true

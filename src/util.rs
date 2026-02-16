@@ -17,13 +17,15 @@ pub fn get_cmd_basename(fallback: impl Into<String>) -> &'static String {
     static BASENAME: OnceLock<String> = OnceLock::new();
     BASENAME.get_or_init(|| {
         if let Some(arg0) = std::env::args().next()
-            && let Some(basename) = std::path::Path::new(&arg0).file_name() {
-                return basename.to_string_lossy().into_owned();
-            }
+            && let Some(basename) = std::path::Path::new(&arg0).file_name()
+        {
+            return basename.to_string_lossy().into_owned();
+        }
         if let Ok(exe) = std::env::current_exe()
-            && let Some(filename) = exe.file_name() {
-                return filename.to_string_lossy().into_owned();
-            }
+            && let Some(filename) = exe.file_name()
+        {
+            return filename.to_string_lossy().into_owned();
+        }
         // I officialy give up
         fallback.into()
     })

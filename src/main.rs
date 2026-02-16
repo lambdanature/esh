@@ -4,7 +4,7 @@ use std::sync::Arc;
 use clap::{ArgMatches, Args, Parser};
 use vfs_kit::{DirFS, FsBackend};
 
-use esh::{shell_config, Vfs};
+use esh::{Vfs, shell_config};
 use tracing::info;
 
 struct DirFsVfs(DirFS);
