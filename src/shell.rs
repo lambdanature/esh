@@ -1,10 +1,10 @@
-use vfs::VfsPath;
+use std::path::Path;
 
 use clap::{ArgAction, ArgMatches, Args, Command, FromArgMatches, Parser, Subcommand};
 
 use std::ffi::OsString;
 use std::process::ExitCode;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 #[allow(unused_imports)]
 use tracing::{debug, error, info, trace, warn};
@@ -30,8 +30,14 @@ type Augmentor = Arc<AugmentorFn>;
 type HandlerFn = dyn Fn(&dyn Shell, &ArgMatches) -> CommandResult + Send + Sync;
 type Handler = Arc<HandlerFn>;
 
-type VfsPathLookupFn = dyn Fn(&ArgMatches) -> Option<VfsPath> + Send + Sync;
-type VfsPathLookup = Arc<VfsPathLookupFn>;
+/// Backend-agnostic VFS interface for the shell.
+/// Implement this trait to plug in any filesystem backend.
+pub trait Vfs: Send {
+    fn cwd(&self) -> &Path;
+}
+
+type VfsLookupFn = dyn Fn(&ArgMatches) -> Option<Box<dyn Vfs>> + Send + Sync;
+type VfsLookup = Arc<VfsLookupFn>;
 
 #[derive(Default, Clone)]
 struct CommandGroup {
@@ -46,8 +52,8 @@ struct BasicShell {
     version: String,
     cli_group: RwLock<CommandGroup>,
     shell_group: RwLock<CommandGroup>,
-    vfs_path_lookup: Option<VfsPathLookup>,
-    vfs_cwd: RwLock<Option<VfsPath>>,
+    vfs_lookup: Option<VfsLookup>,
+    vfs: Mutex<Option<Box<dyn Vfs>>>,
 }
 
 #[derive(Subcommand)]
@@ -110,9 +116,9 @@ enum VfsSharedCommands {
 fn handle_vfs_shared_command(sh: &BasicShell, matches: &ArgMatches) -> CommandResult {
     match VfsSharedCommands::from_arg_matches(matches) {
         Ok(VfsSharedCommands::Pwd) => {
-            let vfs_cwd_read_guard = sh.vfs_cwd.read().unwrap();
-            if let Some(cwd) = &*vfs_cwd_read_guard {
-                println!("{}", cwd.as_str());
+            let vfs_guard = sh.vfs.lock().unwrap();
+            if let Some(fs) = &*vfs_guard {
+                println!("{}", fs.cwd().display());
                 CommandResult::Ok
             } else {
                 eprintln!("Error: no current cwd");
@@ -130,7 +136,7 @@ impl BasicShell {
         version: String,
         shell_group: CommandGroup,
         cli_group: CommandGroup,
-        vfs_path_lookup: Option<VfsPathLookup>,
+        vfs_lookup: Option<VfsLookup>,
     ) -> Arc<BasicShell> {
         let sh = Arc::new(BasicShell {
             name,
@@ -138,8 +144,8 @@ impl BasicShell {
             version,
             shell_group: RwLock::new(shell_group),
             cli_group: RwLock::new(cli_group),
-            vfs_path_lookup: vfs_path_lookup,
-            vfs_cwd: RwLock::new(None),
+            vfs_lookup,
+            vfs: Mutex::new(None),
         });
 
         {
@@ -170,7 +176,7 @@ impl BasicShell {
             sh.cli_group.write().unwrap().hnds.push(handler);
         }
 
-        if let Some(_vfs_path_lookup) = &sh.vfs_path_lookup {
+        if let Some(_vfs_lookup) = &sh.vfs_lookup {
             let sh_cap = sh.clone();
             let cmds = Arc::new(VfsSharedCommands::augment_subcommands);
             let handler: Handler = Arc::new(move |_, m| handle_vfs_shared_command(&sh_cap, m));
@@ -247,13 +253,11 @@ impl Shell for BasicShell {
                     );
                 });
 
-                if let Some(vfs_path_lookup) = &self.vfs_path_lookup {
-                    // Shell is configured to read a VfsPath into vfs_cwd
-                    if let Some(vfs_cwd) = (vfs_path_lookup)(&matches) {
-                        let mut vfs_cwd_write_guard = self.vfs_cwd.write().unwrap();
-                        *vfs_cwd_write_guard = Some(vfs_cwd);
+                if let Some(vfs_lookup) = &self.vfs_lookup {
+                    if let Some(vfs) = (vfs_lookup)(&matches) {
+                        *self.vfs.lock().unwrap() = Some(vfs);
                     } else {
-                        die!("Internal error: Can't retrieve vfs path");
+                        die!("Internal error: Can't retrieve vfs");
                     }
                 }
 
@@ -293,7 +297,7 @@ pub struct ShellConfig {
     version: String,
     cli_group: CommandGroup,
     shell_group: CommandGroup,
-    vfs_path_lookup: Option<VfsPathLookup>,
+    vfs_lookup: Option<VfsLookup>,
 }
 
 #[macro_export]
@@ -320,7 +324,7 @@ impl ShellConfig {
             version: version.into(),
             cli_group: CommandGroup::default(),
             shell_group: CommandGroup::default(),
-            vfs_path_lookup: None,
+            vfs_lookup: None,
         }
     }
 
@@ -359,8 +363,8 @@ impl ShellConfig {
         self
     }
 
-    pub fn vfs_path_lookup(mut self, lookup: VfsPathLookup) -> Self {
-        self.vfs_path_lookup = Some(lookup);
+    pub fn vfs_lookup(mut self, lookup: VfsLookup) -> Self {
+        self.vfs_lookup = Some(lookup);
         self
     }
 
@@ -371,7 +375,7 @@ impl ShellConfig {
             self.version,
             self.shell_group,
             self.cli_group,
-            self.vfs_path_lookup,
+            self.vfs_lookup,
         );
 
         Arc::new(sh) as Arc<dyn Shell>

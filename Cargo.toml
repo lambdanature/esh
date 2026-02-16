@@ -21,4 +21,4 @@ tracing = "0.1.44"
 tracing-log = "0.2.0"
 tracing-panic = "0.1.2"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
-vfs = "0.12.2"
+vfs-kit = "0.1.13"
