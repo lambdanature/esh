@@ -52,7 +52,7 @@ tools: ## Update the rust environment
 	cargo install cargo-outdated
 	cargo install cargo-audit
 
-init: ## Install precommit hooks
+init-git: ## Install precommit hooks
 	install -m 755 .git-pre-commit-template .git/hooks/pre-commit
 
 help: ## Display this help screen

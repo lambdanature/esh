@@ -3,8 +3,8 @@
 _Note: This is pre-release / alpha software, use at your own
 discretion. Notably, at the time of writing, the actual REPL mode is missing, as
 well as sufficient testing, panic-safety, and library documention. See
-[TODO.md](TODO.md) for next steps, and [CHANGELOG.md](CHANGELOG.md) for latest
-news._
+[TODO.md](TODO.md) for next steps, [CHANGELOG.md](CHANGELOG.md) for latest
+news, and [DEVELOPING.md](DEVELOPING.md) for making changes._
 
 A Rust library for building interactive, command-driven CLI
 applications. **esh** provides a shell framework that handles argument parsing,

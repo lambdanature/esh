@@ -2,7 +2,7 @@
 - Install Rust release, see https://rust-lang.org/tools/install/
 - Read the `Makefile` (for your safety)
 - Run `make tools` to install dependencies
-- Read the `.git-pre-commit-template`, then run `make reconfig` to activate
+- Read the `.git-pre-commit-template`, then run `make init-git` to activate
 
 ## Release Checklist
 - [ ] `cargo fix`
