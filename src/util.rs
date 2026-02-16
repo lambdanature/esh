@@ -39,17 +39,18 @@ pub fn get_cmd_fallback() -> &'static String {
 macro_rules! die {
     ($fmt:literal, $($arg:tt)*) => {{
         tracing::error!("Fatal error, exiting: {}", format!($fmt, $($arg)*));
-        std::process::exit(1);
+        std::process::exit(1)   // No semicolon, we want to return ! (Never)
+
     }};
 
     ($msg:literal) => {{
         tracing::error!("Fatal error, exiting: {}", $msg);
-        std::process::exit(1);
+        std::process::exit(1)   // No semicolon, we want to return ! (Never)
     }};
 
     () => {{
         tracing::error!("Fatal error, exiting");
-        std::process::exit(1);
+        std::process::exit(1)   // No semicolon, we want to return ! (Never)
     }};
 }
 
@@ -75,7 +76,7 @@ macro_rules! pluralize {
     };
 }
 
-pub fn init_tracing(quiet: bool, verbose: u8) -> (bool, LevelFilter) {
+pub fn init_tracing(name: impl Into<String>, quiet: bool, verbose: u8) -> (bool, LevelFilter) {
     let is_verbose = !quiet && verbose > 0;
 
     let level_filter = if quiet {
@@ -94,9 +95,12 @@ pub fn init_tracing(quiet: bool, verbose: u8) -> (bool, LevelFilter) {
 
     let registry = Registry::default();
 
+    let log_env_name = format!("{}_LOG", name.into().to_uppercase());
+    eprintln!("log_env_name = {log_env_name:?}");
+
     let env_filter = EnvFilter::builder()
         .with_default_directive(level_filter.into())
-        .with_env_var("FJALL_LOG")
+        .with_env_var(log_env_name)
         .from_env_lossy()
         .add_directive(
             "rustyline=warn"
