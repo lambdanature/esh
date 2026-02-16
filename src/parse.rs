@@ -247,7 +247,7 @@ fn parse_backslash_escape(
             let mut count = 0u8;
             while count < 3 {
                 match chars.peek() {
-                    Some(&d) if d >= '0' && d <= '7' => {
+                    Some(&d) if ('0'..='7').contains(&d) => {
                         value = value * 8 + (d as u8 - b'0');
                         chars.next();
                         count += 1;
