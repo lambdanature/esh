@@ -5,6 +5,7 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Embeddable SHell - a Rust library for building interactive, command-driven CLI applications."
 repository = "https://github.com/lambdanature/esh"
+keywords = ["shell", "cli", "vfs"]
 
 [lib]
 name = "esh"
