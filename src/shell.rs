@@ -6,11 +6,9 @@ use std::ffi::OsString;
 use std::process::ExitCode;
 use std::sync::{Arc, Mutex, RwLock};
 
+use crate::die;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, trace, warn};
-
-#[allow(unused_imports)]
-use crate::die;
 
 pub enum CommandResult {
     Ok,
