@@ -1,4 +1,4 @@
-// use vfs::VfsPath;
+use vfs::VfsPath;
 
 use clap::{ArgAction, ArgMatches, Args, Command, FromArgMatches, Parser, Subcommand};
 
@@ -24,8 +24,14 @@ pub trait Shell {
     fn run_args(&self, args: std::slice::Iter<OsString>) -> ExitCode;
 }
 
-type Augmentor = Arc<dyn Fn(Command) -> Command + Send + Sync>;
-type Handler = Arc<dyn Fn(&dyn Shell, &ArgMatches) -> CommandResult + Send + Sync>;
+type AugmentorFn = dyn Fn(Command) -> Command + Send + Sync;
+type Augmentor = Arc<AugmentorFn>;
+
+type HandlerFn = dyn Fn(&dyn Shell, &ArgMatches) -> CommandResult + Send + Sync;
+type Handler = Arc<HandlerFn>;
+
+type VfsPathLookupFn = dyn Fn(&ArgMatches) -> Option<VfsPath> + Send + Sync;
+type VfsPathLookup = Arc<VfsPathLookupFn>;
 
 #[derive(Default, Clone)]
 struct CommandGroup {
@@ -40,6 +46,8 @@ struct BasicShell {
     version: String,
     cli_group: RwLock<CommandGroup>,
     shell_group: RwLock<CommandGroup>,
+    vfs_path_lookup: Option<VfsPathLookup>,
+    vfs_cwd: RwLock<Option<VfsPath>>,
 }
 
 #[derive(Subcommand)]
@@ -94,6 +102,27 @@ fn handle_basic_shared_command(sh: &BasicShell, matches: &ArgMatches) -> Command
     }
 }
 
+#[derive(Subcommand)]
+enum VfsSharedCommands {
+    Pwd,
+}
+
+fn handle_vfs_shared_command(sh: &BasicShell, matches: &ArgMatches) -> CommandResult {
+    match VfsSharedCommands::from_arg_matches(matches) {
+        Ok(VfsSharedCommands::Pwd) => {
+            let vfs_cwd_read_guard = sh.vfs_cwd.read().unwrap();
+            if let Some(cwd) = &*vfs_cwd_read_guard {
+                println!("{}", cwd.as_str());
+                CommandResult::Ok
+            } else {
+                eprintln!("Error: no current cwd");
+                CommandResult::Error
+            }
+        }
+        Err(_) => CommandResult::NotFound,
+    }
+}
+
 impl BasicShell {
     fn new(
         name: String,
@@ -101,6 +130,7 @@ impl BasicShell {
         version: String,
         shell_group: CommandGroup,
         cli_group: CommandGroup,
+        vfs_path_lookup: Option<VfsPathLookup>,
     ) -> Arc<BasicShell> {
         let sh = Arc::new(BasicShell {
             name,
@@ -108,6 +138,8 @@ impl BasicShell {
             version,
             shell_group: RwLock::new(shell_group),
             cli_group: RwLock::new(cli_group),
+            vfs_path_lookup: vfs_path_lookup,
+            vfs_cwd: RwLock::new(None),
         });
 
         {
@@ -138,6 +170,14 @@ impl BasicShell {
             sh.cli_group.write().unwrap().hnds.push(handler);
         }
 
+        if let Some(_vfs_path_lookup) = &sh.vfs_path_lookup {
+            let sh_cap = sh.clone();
+            let cmds = Arc::new(VfsSharedCommands::augment_subcommands);
+            let handler: Handler = Arc::new(move |_, m| handle_vfs_shared_command(&sh_cap, m));
+            sh.cli_group.write().unwrap().cmds.push(cmds);
+            sh.cli_group.write().unwrap().hnds.push(handler);
+        }
+
         sh
     }
 
@@ -151,9 +191,9 @@ impl BasicShell {
     // }
 
     fn build_cmd(&self) -> Command {
-        let mut cmd = Command::new(self.name.clone());
-        //    .subcommand_required(true)
-        //    .arg_required_else_help(true);
+        let mut cmd = Command::new(self.name.clone())
+            .subcommand_required(true)
+            .arg_required_else_help(true);
 
         let cli_group = self.cli_group.read().unwrap();
 
@@ -195,6 +235,7 @@ impl Shell for BasicShell {
             Ok(matches) => {
                 INIT_LOGGING.call_once(|| {
                     let (_, level_filter) = crate::init_tracing(
+                        &self.name,
                         matches.get_flag("quiet"),
                         matches.get_count("verbose"),
                     );
@@ -205,6 +246,16 @@ impl Shell for BasicShell {
                         env!("CARGO_PKG_VERSION")
                     );
                 });
+
+                if let Some(vfs_path_lookup) = &self.vfs_path_lookup {
+                    // Shell is configured to read a VfsPath into vfs_cwd
+                    if let Some(vfs_cwd) = (vfs_path_lookup)(&matches) {
+                        let mut vfs_cwd_write_guard = self.vfs_cwd.write().unwrap();
+                        *vfs_cwd_write_guard = Some(vfs_cwd);
+                    } else {
+                        die!("Internal error: Can't retrieve vfs path");
+                    }
+                }
 
                 for handler in &self.cli_group.read().unwrap().hnds {
                     match (handler)(self, &matches) {
@@ -242,7 +293,7 @@ pub struct ShellConfig {
     version: String,
     cli_group: CommandGroup,
     shell_group: CommandGroup,
-    // vfs_root: Option<VfsPath>,
+    vfs_path_lookup: Option<VfsPathLookup>,
 }
 
 #[macro_export]
@@ -269,7 +320,7 @@ impl ShellConfig {
             version: version.into(),
             cli_group: CommandGroup::default(),
             shell_group: CommandGroup::default(),
-            // vfs_root: None,
+            vfs_path_lookup: None,
         }
     }
 
@@ -278,43 +329,51 @@ impl ShellConfig {
         self
     }
 
-    pub fn cli_args(mut self, args: Augmentor) {
+    pub fn cli_args(mut self, args: Augmentor) -> Self {
         self.cli_group.args.push(args);
+        self
     }
 
-    pub fn cli_cmds(mut self, cmds: Augmentor) {
+    pub fn cli_cmds(mut self, cmds: Augmentor) -> Self {
         self.cli_group.cmds.push(cmds);
+        self
     }
 
-    pub fn cli_handler(mut self, handler: Handler) {
+    pub fn cli_handler(mut self, handler: Handler) -> Self {
         self.cli_group.hnds.push(handler);
+        self
     }
 
-    pub fn shell_args(mut self, args: Augmentor) {
+    pub fn shell_args(mut self, args: Augmentor) -> Self {
         self.shell_group.args.push(args);
+        self
     }
 
-    pub fn shell_cmds(mut self, cmds: Augmentor) {
+    pub fn shell_cmds(mut self, cmds: Augmentor) -> Self {
         self.shell_group.cmds.push(cmds);
+        self
     }
 
-    pub fn shell_handler(mut self, handler: Handler) {
+    pub fn shell_handler(mut self, handler: Handler) -> Self {
         self.shell_group.hnds.push(handler);
+        self
     }
 
-    // pub fn vfs(mut self, vfs_root: VfsPath) {
-    //     self.vfs_root = Some(vfs_root);
-    // }
+    pub fn vfs_path_lookup(mut self, lookup: VfsPathLookup) -> Self {
+        self.vfs_path_lookup = Some(lookup);
+        self
+    }
 
-    pub fn build(self) -> Box<dyn Shell + 'static> {
+    pub fn build(self) -> Arc<dyn Shell + 'static> {
         let sh = BasicShell::new(
             self.name,
             self.pkg_name,
             self.version,
             self.shell_group,
             self.cli_group,
+            self.vfs_path_lookup,
         );
 
-        Box::new(sh) as Box<dyn Shell>
+        Arc::new(sh) as Arc<dyn Shell>
     }
 }
