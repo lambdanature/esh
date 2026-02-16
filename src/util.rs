@@ -96,7 +96,6 @@ pub fn init_tracing(name: impl Into<String>, quiet: bool, verbose: u8) -> (bool,
     let registry = Registry::default();
 
     let log_env_name = format!("{}_LOG", name.into().to_uppercase());
-    eprintln!("log_env_name = {log_env_name:?}");
 
     let env_filter = EnvFilter::builder()
         .with_default_directive(level_filter.into())
