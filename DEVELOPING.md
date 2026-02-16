@@ -1,6 +1,8 @@
 ## Development Tooling
 - Install Rust release, see https://rust-lang.org/tools/install/
-- Read Makefile and then run `make tools` to install dependencies
+- Read the `Makefile` (for your safety)
+- Run `make tools` to install dependencies
+- Read the `.git-pre-commit-template`, then run `make reconfig` to activate
 
 ## Release Checklist
 - [ ] `cargo fix`

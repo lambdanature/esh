@@ -1,0 +1,29 @@
+#!/bin/bash
+
+CMD=$(basename "$0")
+
+warn () { echo "$CMD: $*" >&2; }
+die  () { echo "$CMD: $*" >&2; exit 1; }
+
+warn "🚀 Running Pre-Commit Checks"
+
+# BRANCH=$(git rev-parse --abbrev-ref HEAD)
+# if [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
+#   warn "❌ ERROR: You are trying to commit directly to the '$BRANCH' branch."
+#   die "Please use a feature branch and a Pull Request instead."
+# fi
+
+# Check Formatting
+make check
+if [ $? -ne 0 ]; then
+    die "❌ Formatting or Clippy failed. Fix errors before committing."
+fi
+
+# Run Security Audit
+make audit
+if [ $? -ne 0 ]; then
+    die "❌ Security audit failed! Check your dependencies."
+fi
+
+warn "✅ All checks passed. Committing..."
+exit 0
