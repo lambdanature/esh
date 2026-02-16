@@ -1,7 +1,7 @@
 # Variables
 BINARY_NAME = esh
 
-.PHONY: all build test check audit outdated clean help tools
+.PHONY: all build test check audit outdated clean help tools update
 
 all: check build test ## Run checks, then build and test
 
@@ -27,6 +27,9 @@ audit: ## Check for security vulnerabilities
 
 outdated: ## Check for out-of-date dependencies
 	cargo outdated
+
+update: ## Update dependencies to latest version
+	cargo update
 
 clean: ## Clean the build directory
 	cargo clean
