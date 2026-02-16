@@ -3,6 +3,8 @@ name = "esh"
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
+description = "Embeddable SHell - a Rust library for building interactive, command-driven CLI applications."
+repository = "https://github.com/lambdanature/esh"
 
 [lib]
 name = "esh"
