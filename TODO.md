@@ -4,6 +4,8 @@
 - [ ] Parsing / Escape cleanliness
 - [ ] Additional VFS features and corresponding commands
 - [ ] Test with real-life applications (beyond esh)
+- [ ] Dynamic Protobuf support - use prost-reflect to dump
+      arbitrary binary data fields to ascii protobuf or JSON
 - [ ] Windows port
 
 ## General Rust Library Hardening Checklist
