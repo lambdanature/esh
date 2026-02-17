@@ -279,10 +279,8 @@ impl Shell for BasicShell {
         // First, evaluate the actual command line using external argv.
         // Then we determine if we need to go into interactive mode or
         // directly execute a command from argv.
-        let cmd = self.build_cmd();
-
-        let matches = cmd
-            .clone()
+        let matches = self
+            .build_cmd()
             .try_get_matches_from(args)
             .unwrap_or_else(|e| e.exit());
 
@@ -294,7 +292,7 @@ impl Shell for BasicShell {
             );
             info!(
                 "starting {} ({} {}), log level: {level_filter}",
-                cmd.get_name(),
+                self.name,
                 env!("CARGO_PKG_NAME"),
                 env!("CARGO_PKG_VERSION")
             );

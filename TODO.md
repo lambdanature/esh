@@ -70,23 +70,6 @@
 +------------------------------+
 
 
-## 1. Correctness Issues
-
-### 1.3 `cmd.clone()` on every `run_args` call (LOW)
-
-**File:** `src/shell.rs:276`
-
-```rust
-match cmd.clone().try_get_matches_from(args) {
-```
-
-`build_cmd()` already creates a fresh `Command` each call, yet it is immediately
-cloned again. The clone exists because `try_get_matches_from` consumes the
-`Command`, but this creates two full copies of the command structure per
-invocation. Consider restructuring so the clone is unnecessary.
-
----
-
 ## 2. Error Handling & Robustness
 
 ### 2.1 Pervasive `.unwrap()` on lock acquisition (HIGH)
