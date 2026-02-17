@@ -72,19 +72,6 @@
 
 ## 1. Correctness Issues
 
-### 1.2 Octal escape overflow (MEDIUM)
-
-**File:** `src/parse.rs:246-258`
-
-The octal parser `\0ooo` accumulates into a `u8` via `value = value * 8 + (d as
-u8 - b'0')`. Three octal digits can produce values up to `0o777 = 511`, which
-overflows a `u8` (max 255). For example, `\0777` silently wraps to `0xFF`
-(or any other wrapping value) in debug mode, but will **panic** in debug builds
-with overflow checks enabled.
-
-**Recommendation:** Either cap to `\0377` (like POSIX `$'...'`), return an error
-for values > 255, or document the wrapping behavior explicitly.
-
 ### 1.3 `cmd.clone()` on every `run_args` call (LOW)
 
 **File:** `src/shell.rs:276`

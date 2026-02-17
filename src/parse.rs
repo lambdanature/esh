@@ -242,20 +242,26 @@ fn parse_backslash_escape(
         '\n' => { /* discard both backslash and newline */ }
 
         // ---- octal: \0[ooo] -----------------------------------------------
+        // Capped at \0377 (255) like POSIX $'...' — digits that would
+        // overflow a u8 are left unconsumed.
         '0' => {
-            let mut value: u8 = 0;
+            let mut value: u16 = 0;
             let mut count = 0u8;
             while count < 3 {
                 match chars.peek() {
                     Some(&d) if ('0'..='7').contains(&d) => {
-                        value = value * 8 + (d as u8 - b'0');
+                        let next_value = value * 8 + (d as u16 - b'0' as u16);
+                        if next_value > 255 {
+                            break;
+                        }
+                        value = next_value;
                         chars.next();
                         count += 1;
                     }
                     _ => break,
                 }
             }
-            output.push(value);
+            output.push(value as u8);
         }
 
         // ---- C-style hex: \xH[H] ------------------------------------------
@@ -481,6 +487,22 @@ mod tests {
     fn octal_escape() {
         // \0101 = 'A' (65 decimal)
         assert_eq!(shell_parse_line(r"\0101").unwrap(), vec!["A"]);
+    }
+
+    #[test]
+    fn octal_max() {
+        // \0377 = 255, the maximum octal byte
+        assert_eq!(
+            shell_parse_line(r"\0377").unwrap(),
+            vec![OsString::from_vec(vec![0xFF])],
+        );
+    }
+
+    #[test]
+    fn octal_overflow_stops_early() {
+        // \0777: first two digits give \077 = 63 = '?', third '7' would
+        // push to 511 which overflows u8, so it stays as literal text.
+        assert_eq!(shell_parse_line(r"\0777").unwrap(), vec!["?7"]);
     }
 
     #[test]
