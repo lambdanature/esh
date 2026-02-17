@@ -4,7 +4,7 @@ use std::sync::Arc;
 use clap::{ArgMatches, Args, Parser};
 use vfs_kit::{DirFS, FsBackend};
 
-use esh::{Vfs, shell_config};
+use esh::{ShellError, Vfs, shell_config};
 use tracing::info;
 
 struct DirFsVfs(DirFS);
@@ -19,11 +19,11 @@ fn parse_vfs_root(os_str: &str) -> Result<PathBuf, String> {
     let native_path = match PathBuf::from(os_str).canonicalize() {
         Ok(p) => p,
         Err(e) => {
-            return Err(format!("cannot open path '{}': {}", os_str, e));
+            return Err(format!("cannot open path '{os_str}': {e}"));
         }
     };
     if !native_path.is_dir() {
-        return Err(format!("not a directory: '{}'", os_str));
+        return Err(format!("not a directory: '{os_str}'"));
     }
     Ok(native_path)
 }
@@ -36,26 +36,23 @@ struct CliArgs {
     vfs_path: PathBuf,
 }
 
-fn create_vfs(matches: &ArgMatches) -> Option<Box<dyn Vfs>> {
-    let root_path = matches.get_one::<PathBuf>("vfs_path")?;
-    match DirFS::new(root_path) {
-        Ok(mut fs) => {
-            info!("Created DirFS with root {root_path:?}");
-            fs.set_auto_clean(false);
-            Some(Box::new(DirFsVfs(fs)))
-        }
-        Err(e) => {
-            eprintln!("fatal: can't open VFS at '{}': {}", root_path.display(), e);
-            std::process::exit(1);
-        }
-    }
+fn create_vfs(matches: &ArgMatches) -> Result<Box<dyn Vfs>, ShellError> {
+    let root_path = matches
+        .get_one::<PathBuf>("vfs_path")
+        .ok_or_else(|| ShellError::Internal("missing vfs_path argument".into()))?;
+    let mut fs = DirFS::new(root_path).map_err(|e| {
+        ShellError::Internal(format!("can't open VFS at '{}': {e}", root_path.display()))
+    })?;
+    info!("Created DirFS with root {root_path:?}");
+    fs.set_auto_clean(false);
+    Ok(Box::new(DirFsVfs(fs)))
 }
 
-fn main() {
+fn main() -> Result<(), ShellError> {
     let cfg = shell_config!()
         .cli_args(Arc::new(CliArgs::augment_args))
         .vfs_lookup(Arc::new(create_vfs));
     let sh = cfg.build();
 
-    sh.run();
+    sh.run()
 }

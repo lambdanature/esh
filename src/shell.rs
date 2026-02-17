@@ -1,31 +1,38 @@
 use std::path::Path;
 
 use clap::{ArgAction, ArgMatches, Args, Command, FromArgMatches, Parser, Subcommand};
+use thiserror::Error;
 
 use std::ffi::OsString;
-use std::process::ExitCode;
 use std::sync::{Arc, Mutex, RwLock};
 
-use crate::die;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, trace, warn};
 
-pub enum CommandResult {
-    Ok,
-    Error,
-    NotFound,
-    ExitShell(u8),
+#[derive(Error, Debug)]
+pub enum ShellError {
+    /// An internal error that needs higher-level handling
+    #[error("Internal error: {0}")]
+    Internal(String),
+
+    /// The handler did not recognize the subcommand (try the next handler)
+    #[error("Command not found")]
+    CommandNotFound,
+
+    /// Catch-all for standard IO issues
+    #[error("IO Error: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 pub trait Shell {
-    fn run(&self) -> ExitCode;
-    fn run_args(&self, args: std::slice::Iter<OsString>) -> ExitCode;
+    fn run(&self) -> Result<(), ShellError>;
+    fn run_args(&self, args: std::slice::Iter<OsString>) -> Result<(), ShellError>;
 }
 
 type AugmentorFn = dyn Fn(Command) -> Command + Send + Sync;
 type Augmentor = Arc<AugmentorFn>;
 
-type HandlerFn = dyn Fn(&dyn Shell, &ArgMatches) -> CommandResult + Send + Sync;
+type HandlerFn = dyn Fn(&dyn Shell, &ArgMatches) -> Result<(), ShellError> + Send + Sync;
 type Handler = Arc<HandlerFn>;
 
 /// Backend-agnostic VFS interface for the shell.
@@ -34,7 +41,7 @@ pub trait Vfs: Send {
     fn cwd(&self) -> &Path;
 }
 
-type VfsLookupFn = dyn Fn(&ArgMatches) -> Option<Box<dyn Vfs>> + Send + Sync;
+type VfsLookupFn = dyn Fn(&ArgMatches) -> Result<Box<dyn Vfs>, ShellError> + Send + Sync;
 type VfsLookup = Arc<VfsLookupFn>;
 
 #[derive(Default, Clone)]
@@ -114,12 +121,12 @@ enum BasicCliCommands {
     Shell,
 }
 
-fn handle_basic_cli_command(_sh: &BasicShell, matches: &ArgMatches) -> CommandResult {
+fn handle_basic_cli_command(_sh: &BasicShell, matches: &ArgMatches) -> Result<(), ShellError> {
     match BasicCliCommands::from_arg_matches(matches) {
-        Ok(BasicCliCommands::Shell) => {
-            die!("command 'shell' not implemented");
-        }
-        Err(_) => CommandResult::NotFound,
+        Ok(BasicCliCommands::Shell) => Err(ShellError::Internal(
+            "command 'shell' not implemented".into(),
+        )),
+        Err(_) => Err(ShellError::CommandNotFound),
     }
 }
 
@@ -139,10 +146,10 @@ enum BasicShellCommands {
     Exit,
 }
 
-fn handle_basic_shell_command(_sh: &BasicShell, matches: &ArgMatches) -> CommandResult {
+fn handle_basic_shell_command(_sh: &BasicShell, matches: &ArgMatches) -> Result<(), ShellError> {
     match BasicShellCommands::from_arg_matches(matches) {
-        Ok(BasicShellCommands::Exit) => CommandResult::ExitShell(0),
-        Err(_) => CommandResult::NotFound,
+        Ok(BasicShellCommands::Exit) => Ok(()),
+        Err(_) => Err(ShellError::CommandNotFound),
     }
 }
 
@@ -151,13 +158,13 @@ enum BasicSharedCommands {
     Version,
 }
 
-fn handle_basic_shared_command(sh: &BasicShell, matches: &ArgMatches) -> CommandResult {
+fn handle_basic_shared_command(sh: &BasicShell, matches: &ArgMatches) -> Result<(), ShellError> {
     match BasicSharedCommands::from_arg_matches(matches) {
         Ok(BasicSharedCommands::Version) => {
             println!("version {} {}", sh.pkg_name, sh.version);
-            CommandResult::Ok
+            Ok(())
         }
-        Err(_) => CommandResult::NotFound,
+        Err(_) => Err(ShellError::CommandNotFound),
     }
 }
 
@@ -166,19 +173,18 @@ enum VfsSharedCommands {
     Pwd,
 }
 
-fn handle_vfs_shared_command(sh: &BasicShell, matches: &ArgMatches) -> CommandResult {
+fn handle_vfs_shared_command(sh: &BasicShell, matches: &ArgMatches) -> Result<(), ShellError> {
     match VfsSharedCommands::from_arg_matches(matches) {
         Ok(VfsSharedCommands::Pwd) => {
             let vfs_guard = sh.vfs.lock().unwrap();
             if let Some(fs) = &*vfs_guard {
                 println!("{}", fs.cwd().display());
-                CommandResult::Ok
+                Ok(())
             } else {
-                eprintln!("Error: no current cwd");
-                CommandResult::Error
+                Err(ShellError::Internal("no current cwd".into()))
             }
         }
-        Err(_) => CommandResult::NotFound,
+        Err(_) => Err(ShellError::CommandNotFound),
     }
 }
 
@@ -257,7 +263,7 @@ use std::sync::Once;
 static INIT_LOGGING: Once = Once::new();
 
 impl Shell for BasicShell {
-    fn run(&self) -> ExitCode {
+    fn run(&self) -> Result<(), ShellError> {
         let mut args: Vec<OsString> = Vec::new();
         for arg in std::env::args() {
             if let Ok(parsed_arg) = crate::parse::shell_parse_arg(&arg) {
@@ -267,62 +273,55 @@ impl Shell for BasicShell {
         self.run_args(args.iter())
     }
 
-    fn run_args(&self, args: std::slice::Iter<OsString>) -> ExitCode {
+    fn run_args(&self, args: std::slice::Iter<OsString>) -> Result<(), ShellError> {
         // First, evaluate the actual command line using external argv.
         // Then we determine if we need to go into interactive mode or
         // directly execute a command from argv.
-        let mut cmd = self.build_cmd();
+        let cmd = self.build_cmd();
 
-        match cmd.clone().try_get_matches_from(args) {
-            Ok(matches) => {
-                INIT_LOGGING.call_once(|| {
-                    let (_, level_filter) = crate::init_tracing(
-                        &self.name,
-                        matches.get_flag("quiet"),
-                        matches.get_count("verbose"),
-                    );
-                    info!(
-                        "starting {} ({} {}), log level: {level_filter}",
-                        cmd.get_name(),
-                        env!("CARGO_PKG_NAME"),
-                        env!("CARGO_PKG_VERSION")
-                    );
-                });
+        let matches = cmd
+            .clone()
+            .try_get_matches_from(args)
+            .unwrap_or_else(|e| e.exit());
 
-                if let Some(vfs_lookup) = &self.vfs_lookup {
-                    if let Some(vfs) = (vfs_lookup)(&matches) {
-                        *self.vfs.lock().unwrap() = Some(vfs);
-                    } else {
-                        die!("Internal error: Can't retrieve vfs");
-                    }
-                }
+        INIT_LOGGING.call_once(|| {
+            let (_, level_filter) = crate::init_tracing(
+                &self.name,
+                matches.get_flag("quiet"),
+                matches.get_count("verbose"),
+            );
+            info!(
+                "starting {} ({} {}), log level: {level_filter}",
+                cmd.get_name(),
+                env!("CARGO_PKG_NAME"),
+                env!("CARGO_PKG_VERSION")
+            );
+        });
 
-                for handler in &self.cli_group.read().unwrap().hnds {
-                    match (handler)(self, &matches) {
-                        CommandResult::Ok => return ExitCode::SUCCESS,
-                        CommandResult::Error => return ExitCode::FAILURE,
-                        CommandResult::ExitShell(code) => return ExitCode::from(code),
-                        CommandResult::NotFound => continue,
-                    }
-                }
-            }
-            Err(_) => {
-                // Fall-through to print help
+        if let Some(vfs_lookup) = &self.vfs_lookup {
+            let vfs = (vfs_lookup)(&matches)?;
+            *self.vfs.lock().unwrap() = Some(vfs);
+        }
+
+        for handler in &self.cli_group.read().unwrap().hnds {
+            match (handler)(self, &matches) {
+                Ok(()) => return Ok(()),
+                Err(ShellError::CommandNotFound) => continue,
+                Err(e) => return Err(e),
             }
         }
-        // Fall-through, we haven't found suitable command handler
-        if cmd.print_help().is_err() {
-            die!("internal error, failed to print help");
-        }
-        ExitCode::FAILURE
+
+        Err(ShellError::Internal(
+            "no handler matched the command".into(),
+        ))
     }
 }
 
 impl Shell for Arc<BasicShell> {
-    fn run(&self) -> ExitCode {
+    fn run(&self) -> Result<(), ShellError> {
         (**self).run()
     }
-    fn run_args(&self, args: std::slice::Iter<OsString>) -> ExitCode {
+    fn run_args(&self, args: std::slice::Iter<OsString>) -> Result<(), ShellError> {
         (**self).run_args(args)
     }
 }
