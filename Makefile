@@ -25,7 +25,7 @@ check-precommit:
           echo "| ERROR: pre-commit outdated, 'make init-git' to update |"; \
           echo "+-------------------------------------------------------+"; \
 	   exit 1)
-	@echo "Up to date: .git/hooks/pre-commit (.git-pre-commit-template)"
+	@echo "pre-commit: ✅ Up to date: .git/hooks/pre-commit (.git-pre-commit-template)"
 
 check: check-precommit ## Check precommit, run clippy and check formatting
 	cargo clippy -- -D warnings
