@@ -266,9 +266,11 @@ impl Shell for BasicShell {
     fn run(&self) -> Result<(), ShellError> {
         let mut args: Vec<OsString> = Vec::new();
         for arg in std::env::args() {
-            if let Ok(parsed_arg) = crate::parse::shell_parse_arg(&arg) {
-                args.push(parsed_arg);
-            }
+            let parsed = crate::parse::shell_parse_arg(&arg).unwrap_or_else(|e| {
+                warn!("failed to parse argument {:?}: {e}, using raw value", arg);
+                OsString::from(&arg)
+            });
+            args.push(parsed);
         }
         self.run_args(args.iter())
     }

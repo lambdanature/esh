@@ -65,56 +65,12 @@
 [anssi-checklist]: https://anssi-fr.github.io/rust-guide/checklist.html
 
 
++------------------------------+
+| Delete resolved review items |
++------------------------------+
 
-
-# Code Review — esh v0.1.1-dev
-
-Reviewed: 2026-02-17
-Scope: Full codebase review (~1300 lines across 5 Rust source files, Cargo.toml, Makefile, and supporting files)
-
----
-
-## Summary
-
-**esh** is a well-structured embeddable shell library with a clean public API, a
-solid POSIX-like parser, and a thoughtful builder pattern for configuration. The
-parser module is the standout — well-documented, well-tested, and closely follows
-POSIX semantics. The shell module has a creative DSL macro for command
-registration but carries several correctness and robustness issues. The project
-is clearly pre-release quality (as acknowledged in the README), and this review
-focuses on what should be addressed before a stable release.
-
-**What works well:**
-- Clean public API surface in `lib.rs`
-- Excellent parser with 48 unit tests and doc-tests
-- Builder pattern for `ShellConfig` is ergonomic
-- Good use of `thiserror` for structured parse errors
-- Pre-commit hooks and Makefile automation
-- Dual license (MIT/Apache-2.0) properly set up
-
----
 
 ## 1. Correctness Issues
-
-### 1.1 Silent argument dropping in `Shell::run()` (HIGH)
-
-**File:** `src/shell.rs:262-266`
-
-```rust
-for arg in std::env::args() {
-    if let Ok(parsed_arg) = crate::parse::shell_parse_arg(&arg) {
-        args.push(parsed_arg);
-    }
-}
-```
-
-If `shell_parse_arg` fails for any argument, it is silently dropped. This means a
-command like `esh -p /foo "\xZZ" pwd` would silently skip the malformed argument,
-potentially causing downstream confusion or incorrect command dispatch.
-
-**Recommendation:** Log a warning or return an error when an argument fails to
-parse. At minimum, push the original unparsed `OsString` as a fallback since
-`std::env::args()` already provides valid OS strings.
 
 ### 1.2 Octal escape overflow (MEDIUM)
 
@@ -275,14 +231,6 @@ fn run_args(&self, args: std::slice::Iter<OsString>) -> ExitCode;
 This forces callers to have a `&[OsString]`. A more flexible signature would
 accept `impl IntoIterator<Item = impl AsRef<OsStr>>` or at least
 `&[OsString]` directly.
-
-### 3.4 `CommandResult` is not re-exported (LOW)
-
-**File:** `src/shell.rs:13-18`, `src/lib.rs`
-
-`CommandResult` is `pub` in `shell.rs` but not re-exported from `lib.rs`. Users
-who register custom handlers via `cli_handler()` need to return `CommandResult`
-but cannot access it from the public API.
 
 ### 3.5 `Handler` / `Augmentor` type aliases are not public (LOW)
 
