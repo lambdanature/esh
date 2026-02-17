@@ -54,6 +54,61 @@ struct BasicShell {
     vfs: Mutex<Option<Box<dyn Vfs>>>,
 }
 
+/// DSL for registering subcommands, arguments, and handlers on a `BasicShell`.
+///
+/// Each statement is one of three verbs followed by a path and a list of target
+/// command groups (fields on `BasicShell`) to register into:
+///
+///   - `CMDS <Type> [groups..]` — registers `<Type>::augment_subcommands` as a
+///     subcommand augmentor on each listed group.
+///   - `ARGS <Type> [groups..]` — registers `<Type>::augment_args` as an
+///     argument augmentor on each listed group.
+///   - `HNDS <fn>   [groups..]` — wraps `<fn>` in a `Handler` closure (capturing
+///     a clone of the shell) and registers it on each listed group.
+///
+/// # Example
+///
+/// ```ignore
+/// add_sh!(sh => {
+///     CMDS BasicSharedCommands          [ shell_group, cli_group ],
+///     HNDS handle_basic_shared_command  [ shell_group, cli_group ],
+///     ARGS BasicCliArgs                 [              cli_group ],
+/// });
+/// ```
+///
+/// This expands to code that clones `sh`, then for each statement pushes the
+/// appropriate augmentor or handler into the `cmds`, `args`, or `hnds` vec of
+/// every listed `CommandGroup`.
+macro_rules! add_sh {
+    // Did anybody ask for a DSL here? No. But was it fun to build? YES! - @lambdanature
+
+    // Top-level macro: <shell> => { <statements>* }
+    ($sh:expr => { $($method:ident $what:path [$($group:ident),* $(,)?] ),* $(,)? } ) => {{
+        // Force typecheck of $sh, we don't want to clone non-Arc<> values
+        let ash: Arc<BasicShell> = $sh.clone();
+        $( add_sh!(@add ash $method $what [ $( $group )* ] ); )*
+    }};
+
+    // Recursive macro: CMDS <CommandStruct> [ <group>* ]
+    (@add $ash:ident CMDS $what:path [ $( $group:ident )* ] ) => {{
+        type What = $what; // Needed to allow appending to a path match
+        let aug = Arc::new(What::augment_subcommands);
+        $( $ash.$group.write().unwrap().cmds.push(aug.clone()); )*
+    }};
+    // Recursive macro: ARGS <ArgStruct> [ <group>* ]
+    (@add $ash:ident ARGS $what:path [ $( $group:ident )* ] ) => {{
+        type What = $what; // Needed to allow appending to a path match
+        let aug = Arc::new(What::augment_args);
+        $( $ash.$group.write().unwrap().args.push(aug.clone()); )*
+    }};
+    // Recursive macro: HNDS <ArgMatchHandlerFn> [ <group>* ]
+    (@add $ash:ident HNDS $what:path [ $( $group:ident )* ] ) => {{
+        let ash_cap = $ash.clone();
+        let hnd: Handler = Arc::new(move |_, m| $what(&ash_cap, m));
+        $( $ash.$group.write().unwrap().hnds.push(hnd.clone()); )*
+    }};
+}
+
 #[derive(Subcommand)]
 enum BasicCliCommands {
     Shell,
@@ -146,40 +201,23 @@ impl BasicShell {
             vfs: Mutex::new(None),
         });
 
-        {
-            let sh_cap = sh.clone();
-            let cmds = Arc::new(BasicSharedCommands::augment_subcommands);
-            let handler: Handler = Arc::new(move |_, m| handle_basic_shared_command(&sh_cap, m));
-            sh.shell_group.write().unwrap().cmds.push(cmds.clone());
-            sh.shell_group.write().unwrap().hnds.push(handler.clone());
-            sh.cli_group.write().unwrap().cmds.push(cmds);
-            sh.cli_group.write().unwrap().hnds.push(handler);
-        }
+        add_sh!(sh => {
+            CMDS BasicSharedCommands           [ shell_group, cli_group ],
+            HNDS handle_basic_shared_command   [ shell_group, cli_group ],
 
-        {
-            let sh_cap = sh.clone();
-            let cmds = Arc::new(BasicShellCommands::augment_subcommands);
-            let handler: Handler = Arc::new(move |_, m| handle_basic_shell_command(&sh_cap, m));
-            sh.shell_group.write().unwrap().cmds.push(cmds);
-            sh.shell_group.write().unwrap().hnds.push(handler);
-        }
+            CMDS BasicShellCommands            [ shell_group            ],
+            HNDS handle_basic_shell_command    [ shell_group            ],
 
-        {
-            let sh_cap = sh.clone();
-            let args = Arc::new(BasicCliArgs::augment_args);
-            let cmds = Arc::new(BasicCliCommands::augment_subcommands);
-            let handler: Handler = Arc::new(move |_, m| handle_basic_cli_command(&sh_cap, m));
-            sh.cli_group.write().unwrap().args.push(args);
-            sh.cli_group.write().unwrap().cmds.push(cmds);
-            sh.cli_group.write().unwrap().hnds.push(handler);
-        }
+            CMDS BasicCliCommands              [              cli_group ],
+            ARGS BasicCliArgs                  [              cli_group ],
+            HNDS handle_basic_cli_command      [              cli_group ],
+        });
 
         if let Some(_vfs_lookup) = &sh.vfs_lookup {
-            let sh_cap = sh.clone();
-            let cmds = Arc::new(VfsSharedCommands::augment_subcommands);
-            let handler: Handler = Arc::new(move |_, m| handle_vfs_shared_command(&sh_cap, m));
-            sh.cli_group.write().unwrap().cmds.push(cmds);
-            sh.cli_group.write().unwrap().hnds.push(handler);
+            add_sh!(sh => {
+                CMDS VfsSharedCommands         [ shell_group, cli_group ],
+                HNDS handle_vfs_shared_command [ shell_group, cli_group ],
+            });
         }
 
         sh
