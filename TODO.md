@@ -6,6 +6,7 @@
 - [ ] Test with real-life applications (beyond esh)
 - [ ] Dynamic Protobuf support - use prost-reflect to dump
       arbitrary binary data fields to ascii protobuf or JSON
+- [ ] Windows mode for vfs access - backslash as path separator
 - [ ] Windows port
 
 ## General Rust Library Hardening Checklist
@@ -18,6 +19,7 @@
 - [ ] Configure **Fuzzing** with `cargo-fuzz` for data parsers
 - [ ] Run **Loom** for concurrency/atomic validation
 - [ ] Validate `unsafe` blocks with **Miri** (`cargo miri test`)
+- [ ] Use **madsim** for testing distributed systems based on async/tokio
 
 ### Hardening & Security
 - [ ] Replace all `.unwrap()` and `.expect()` with proper **Result/Option** handling
