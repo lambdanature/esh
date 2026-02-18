@@ -64,26 +64,3 @@
 - [ ] https://yevh.github.io/rust-security-handbook/
 
 [anssi-checklist]: https://anssi-fr.github.io/rust-guide/checklist.html
-
-
-+------------------------------+
-| Delete resolved review items |
-+------------------------------+
-
-## 10. Build & Tooling
-
-### 10.1 No CI/CD configuration (MEDIUM)
-
-There are no GitHub Actions workflows. The pre-commit hook provides local
-safety, but CI is essential for PRs and cross-platform validation.
-
-**Recommendation:** Add a `.github/workflows/ci.yml` that runs `cargo fmt
---check`, `cargo clippy -- -D warnings`, `cargo test`, and `cargo audit`.
-
-## Prioritized Action Items
-
-| Priority | Item | Section |
-|----------|------|---------|
-
-| **P1** | Add tests for `shell.rs` | 4.1 |
-| **P2** | Set up CI/CD | 10.1 |
