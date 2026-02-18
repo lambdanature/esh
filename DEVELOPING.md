@@ -4,6 +4,12 @@
 - Run `make tools` to install dependencies
 - Read the `.git-pre-commit-template`, then run `make init-git` to activate
 
+### Setting up a Windows Build Host
+- Install newest PowerShell: `winget install --id Microsoft.PowerShell --source winget`
+- Install GNU Make (Windows: `winget install ezwinports.make`)
+- Install Clang (Windows: `winget install LLVM.LLVM`,
+  don't forget to add "C:\Program Files\LLVM\bin" to the path)
+
 ## Release Checklist
 - [ ] `cargo upgrade --verbose` and manually upgrade any semver incompatible dependencies
 - [ ] `cargo fix --allow-staged`
