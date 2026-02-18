@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex, OnceLock, Weak};
 
 use tracing::{info, warn};
 
+/// Errors returned by shell operations.
 #[derive(Error, Debug)]
 pub enum ShellError {
     /// An internal error that needs higher-level handling
@@ -23,24 +24,42 @@ pub enum ShellError {
     Io(#[from] std::io::Error),
 }
 
+/// Core trait for running the shell.
+///
+/// Implementations handle argument parsing, command dispatch, and VFS setup.
 pub trait Shell {
+    /// Parse arguments from the process environment and run the shell.
     fn run(&self) -> Result<(), ShellError>;
+
+    /// Run the shell with the given pre-parsed argument list.
     fn run_args(&self, args: &[OsString]) -> Result<(), ShellError>;
 }
 
 type AugmentorFn = dyn Fn(Command) -> Command + Send + Sync;
+
+/// A shared closure that augments a [`clap::Command`] with additional
+/// subcommands or arguments.
 pub type Augmentor = Arc<AugmentorFn>;
 
 type HandlerFn = dyn Fn(&dyn Shell, &ArgMatches) -> Result<(), ShellError> + Send + Sync;
+
+/// A shared closure that handles a parsed command.
+///
+/// Return `Ok(())` on success, [`ShellError::CommandNotFound`] to pass
+/// control to the next handler, or another [`ShellError`] to abort.
 pub type Handler = Arc<HandlerFn>;
 
 /// Backend-agnostic VFS interface for the shell.
+///
 /// Implement this trait to plug in any filesystem backend.
 pub trait Vfs: Send {
+    /// Return the current working directory of this filesystem.
     fn cwd(&self) -> &Path;
 }
 
 type VfsLookupFn = dyn Fn(&ArgMatches) -> Result<Box<dyn Vfs>, ShellError> + Send + Sync;
+
+/// A shared closure that creates a [`Vfs`] from the parsed command-line arguments.
 pub type VfsLookup = Arc<VfsLookupFn>;
 
 #[derive(Default, Clone)]
@@ -317,6 +336,10 @@ impl Shell for BasicShell {
     }
 }
 
+/// Builder for constructing a [`Shell`] instance.
+///
+/// Use [`shell_config!`] for a convenient starting point that automatically
+/// fills in the binary name, package name, and version from Cargo metadata.
 pub struct ShellConfig {
     name: String,
     pkg_name: String,
@@ -326,6 +349,10 @@ pub struct ShellConfig {
     vfs_lookup: Option<VfsLookup>,
 }
 
+/// Create a [`ShellConfig`] with Cargo metadata filled in automatically.
+///
+/// - `shell_config!()` — derives the shell name from the running binary.
+/// - `shell_config!("name")` — uses the given name explicitly.
 #[macro_export]
 macro_rules! shell_config {
     ($name:expr) => {{ ShellConfig::new($name, env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")) }};
@@ -337,6 +364,9 @@ macro_rules! shell_config {
 }
 
 impl ShellConfig {
+    /// Create a new configuration with the given name, package name, and version.
+    ///
+    /// Prefer [`shell_config!`] which fills these in from Cargo metadata.
     pub fn new(
         name: impl Into<String>,
         pkg_name: impl Into<String>,
@@ -352,46 +382,55 @@ impl ShellConfig {
         }
     }
 
+    /// Override the shell name.
     pub fn name(mut self, name: impl Into<String>) -> Self {
         self.name = name.into();
         self
     }
 
+    /// Register an [`Augmentor`] that adds arguments to the CLI command.
     pub fn cli_args(mut self, args: Augmentor) -> Self {
         self.cli_group.args.push(args);
         self
     }
 
+    /// Register an [`Augmentor`] that adds subcommands to the CLI command.
     pub fn cli_cmds(mut self, cmds: Augmentor) -> Self {
         self.cli_group.cmds.push(cmds);
         self
     }
 
+    /// Register a [`Handler`] for CLI-mode commands.
     pub fn cli_handler(mut self, handler: Handler) -> Self {
         self.cli_group.hnds.push(handler);
         self
     }
 
+    /// Register an [`Augmentor`] that adds arguments to interactive shell commands.
     pub fn shell_args(mut self, args: Augmentor) -> Self {
         self.shell_group.args.push(args);
         self
     }
 
+    /// Register an [`Augmentor`] that adds subcommands to the interactive shell.
     pub fn shell_cmds(mut self, cmds: Augmentor) -> Self {
         self.shell_group.cmds.push(cmds);
         self
     }
 
+    /// Register a [`Handler`] for interactive shell commands.
     pub fn shell_handler(mut self, handler: Handler) -> Self {
         self.shell_group.hnds.push(handler);
         self
     }
 
+    /// Set the [`VfsLookup`] closure that creates a VFS from parsed arguments.
     pub fn vfs_lookup(mut self, lookup: VfsLookup) -> Self {
         self.vfs_lookup = Some(lookup);
         self
     }
 
+    /// Build the configured shell and return it as an `Arc<dyn Shell>`.
     pub fn build(self) -> Arc<dyn Shell + 'static> {
         BasicShell::new(
             self.name,

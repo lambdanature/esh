@@ -12,6 +12,10 @@ use std::sync::OnceLock;
 
 use crate::ShellError;
 
+/// Return the basename of the running binary, cached for the process lifetime.
+///
+/// Tries `argv[0]` first, then [`std::env::current_exe`], and falls back to
+/// the provided string if neither yields a usable name.
 pub fn get_cmd_basename(fallback: impl Into<String>) -> &'static String {
     static BASENAME: OnceLock<String> = OnceLock::new();
     BASENAME.get_or_init(|| {
@@ -30,10 +34,16 @@ pub fn get_cmd_basename(fallback: impl Into<String>) -> &'static String {
     })
 }
 
+/// Convenience wrapper around [`get_cmd_basename`] that uses
+/// `CARGO_PKG_NAME` as the fallback.
 pub fn get_cmd_fallback() -> &'static String {
     get_cmd_basename(env!("CARGO_PKG_NAME"))
 }
 
+/// Log a fatal error via [`tracing::error!`] and exit the process with code 1.
+///
+/// Accepts the same format arguments as [`format!`].
+/// Prefer returning [`ShellError`](crate::ShellError) from library code instead.
 #[macro_export]
 macro_rules! die {
     ($fmt:literal, $($arg:tt)*) => {{
@@ -53,8 +63,11 @@ macro_rules! die {
     }};
 }
 
+/// Simple English pluralisation helper.
+///
+/// - `pluralize!("item", count)` — appends "s" when `count != 1`.
+/// - `pluralize!("child", "children", count)` — uses explicit singular/plural forms.
 #[macro_export]
-// There are multiple relevant crates, but this should suffice
 macro_rules! pluralize {
     // Case 1: Word and Count (Simple "s" suffix)
     ($word:expr, $count:expr) => {
@@ -75,6 +88,13 @@ macro_rules! pluralize {
     };
 }
 
+/// Initialise the global tracing/logging subscriber.
+///
+/// Sets up a compact stderr logger, bridges the `log` crate via
+/// [`tracing_log`], and installs a panic hook that logs panics.
+///
+/// Returns `(is_verbose, level_filter)` on success.  Fails with
+/// [`ShellError::Internal`] if a subscriber or logger is already set.
 pub fn init_tracing(
     name: impl Into<String>,
     quiet: bool,

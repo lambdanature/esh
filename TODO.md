@@ -134,22 +134,6 @@ warnings. Notable ones:
 
 ## 6. API & Documentation
 
-### 6.1 Most public items lack doc comments (HIGH)
-
-- `Shell` trait: no doc comment
-- `ShellConfig`: no doc comment
-- All `ShellConfig` builder methods: no doc comments
-- `CommandResult`: no doc comment
-- `init_tracing`: no doc comment
-- `get_cmd_basename` / `get_cmd_fallback`: no doc comments
-- `die!` / `pluralize!` macros: no doc comments
-
-`parse.rs` is the exception — it has thorough documentation. The rest of the
-public API should match that standard.
-
-**Recommendation:** Add `#![warn(missing_docs)]` to `lib.rs` and fill in the
-gaps.
-
 ### 6.2 `Shell` trait is too thin to be useful as a trait (MEDIUM)
 
 The `Shell` trait has only `run()` and `run_args()`. Consumers cannot query the
@@ -257,7 +241,6 @@ is broader; the second (`/target`) is more specific. Keep only one.
 | **P0** | Remove `RwLock`/`Mutex` where unnecessary | 3.1 |
 | **P1** | Replace `.unwrap()` on locks with proper error handling | 2.1 |
 | **P1** | Add tests for `shell.rs` | 4.1 |
-| **P1** | Add doc comments to public API | 6.1 |
 | **P1** | Gate or abstract `unix::ffi::OsStringExt` | 7.1 |
 | **P2** | Add integration tests | 4.3 |
 | **P2** | Add tests for `util.rs` | 4.2 |
@@ -265,5 +248,4 @@ is broader; the second (`/target`) is more specific. Keep only one.
 | **P2** | Add `#[must_use]` to builder methods | 5.5 |
 | **P3** | Fix pedantic clippy warnings | 5.5 |
 | **P3** | Add `#![forbid(unsafe_code)]` | 9.2 |
-| **P3** | Add `#![warn(missing_docs)]` | 6.1 |
 | **P3** | Document MSRV | 9.3 |

@@ -8,18 +8,25 @@ use std::str::Chars;
 /// Errors that can occur when parsing a shell line.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ShellParseError {
+    /// A single-quoted string was never closed.
     #[error("unmatched single quote")]
     UnmatchedSingleQuote,
+    /// A double-quoted string was never closed.
     #[error("unmatched double quote")]
     UnmatchedDoubleQuote,
+    /// Input ends with a lone backslash.
     #[error("trailing backslash")]
     TrailingBackslash,
+    /// A `\xNN` sequence is malformed or incomplete.
     #[error("invalid \\x hex escape sequence")]
     InvalidHexEscape,
+    /// A `\u{NNNN}` sequence is malformed or incomplete.
     #[error("invalid \\u{{}} unicode escape sequence")]
     InvalidUnicodeEscape,
+    /// The code point in a `\u{NNNN}` escape is not a valid Unicode scalar value.
     #[error("invalid unicode code point: U+{0:04X}")]
     InvalidUnicodeCodePoint(u32),
+    /// The resulting byte sequence is not valid UTF-8.
     #[error("invalid UTF-8 in argument")]
     InvalidUtf8,
 }

@@ -1,3 +1,11 @@
+//! Embeddable shell framework.
+//!
+//! `esh` provides a configurable command-line shell that can be extended with
+//! custom subcommands, argument augmentors, handlers, and a virtual filesystem.
+//! Start with [`shell_config!`] to build a [`Shell`] instance.
+
+#![warn(missing_docs)]
+
 mod parse;
 mod shell;
 mod util;
