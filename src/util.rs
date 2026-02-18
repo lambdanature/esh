@@ -2,9 +2,6 @@
 // TODO: Enrich log!() output with env!("CARGO_PKG_NAME") / env!("CARGO_PKG_VERSION") /
 //       file!() / line!() / column!()
 
-#[allow(unused_imports)]
-use tracing::{debug, error, info, trace, warn};
-
 use tracing_subscriber::{
     filter::{Directive, EnvFilter, LevelFilter},
     prelude::*,

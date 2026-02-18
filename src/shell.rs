@@ -6,8 +6,7 @@ use thiserror::Error;
 use std::ffi::OsString;
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 
-#[allow(unused_imports)]
-use tracing::{debug, error, info, trace, warn};
+use tracing::{info, warn};
 
 #[derive(Error, Debug)]
 pub enum ShellError {

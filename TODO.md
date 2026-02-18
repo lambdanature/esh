@@ -117,18 +117,6 @@ The 48 parser tests cover the main paths well. Consider adding:
 
 ## 5. Code Quality
 
-### 5.2 `#[allow(unused_imports)]` for tracing (LOW)
-
-**File:** `src/shell.rs:11`, `src/util.rs:6`
-
-```rust
-#[allow(unused_imports)]
-use tracing::{debug, error, info, trace, warn};
-```
-
-This suppresses warnings for unused log levels. Import only the levels actually
-used in each file.
-
 ### 5.4 Pedantic clippy warnings (LOW)
 
 Running `cargo clippy -- -W clippy::pedantic -W clippy::nursery` produces 21
@@ -275,7 +263,6 @@ is broader; the second (`/target`) is more specific. Keep only one.
 | **P2** | Add tests for `util.rs` | 4.2 |
 | **P2** | Set up CI/CD | 10.1 |
 | **P2** | Add `#[must_use]` to builder methods | 5.5 |
-| **P3** | Clean up unused imports | 5.2 |
 | **P3** | Fix pedantic clippy warnings | 5.5 |
 | **P3** | Add `#![forbid(unsafe_code)]` | 9.2 |
 | **P3** | Add `#![warn(missing_docs)]` | 6.1 |
