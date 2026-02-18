@@ -27,4 +27,4 @@ pub use parse::{
     ShellParseError,
 };
 pub use shell::{Augmentor, Handler, Shell, ShellConfig, ShellError, Vfs, VfsLookup};
-pub use util::{get_cmd_basename, get_cmd_fallback, init_tracing};
+pub use util::{get_cmd_basename, get_cmd_fallback, init_tracing, make_env_ident};

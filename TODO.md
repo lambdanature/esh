@@ -29,6 +29,7 @@
 - [ ] Run **Loom** for concurrency/atomic validation
 - [ ] Validate `unsafe` blocks with **Miri** (`cargo miri test`)
 - [ ] Use **madsim** for testing distributed systems based on async/tokio
+- [ ] CI tarpaulin test coverage checks (see Makefile), with tarpaulin.toml
 
 ### Hardening & Security
 - [X] Replace all `.unwrap()` and `.expect()` with proper **Result/Option** handling
@@ -106,27 +107,6 @@ multi-shell scenarios subtly incorrect.
 7. [Prioritised Action Items](#7-prioritised-action-items)
 
 ---
-
-## 1. Safety
-
-### 2.3 [MEDIUM] Environment variable injection via shell name
-
-**File:** `src/util.rs:129`
-
-```rust
-let log_env_name = format!("{}_LOG", name.into().to_uppercase());
-```
-
-The shell name is used to construct an environment variable name. If the name
-contains characters that are unusual in env var names (spaces, `=`, NUL), this
-could create a malformed or misleading env var lookup. In practice the name comes
-from `CARGO_BIN_NAME` or a hardcoded string, but since `ShellConfig::new()`
-accepts arbitrary `impl Into<String>`, a library consumer could pass a
-problematic name.
-
-**Recommendation:** Sanitize the name (allow only `[A-Z0-9_]`) or validate it in
-`ShellConfig::new()`.
-
 
 ## 3. Performance
 

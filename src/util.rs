@@ -90,6 +90,44 @@ macro_rules! pluralize {
     };
 }
 
+/// Sanitize an arbitrary string into a valid, uppercase environment variable
+/// name using only `[A-Z0-9_]`.
+///
+/// - Leading non-alphabetic characters are skipped (env var names must start
+///   with a letter).
+/// - Remaining alphanumeric characters are uppercased.
+/// - Any run of non-alphanumeric characters is collapsed into a single `_`.
+/// - A trailing `_` is stripped.
+/// - Returns an empty string if the input contains no alphabetic characters.
+pub fn make_env_ident<T: AsRef<str>>(input: T) -> String {
+    let s = input.as_ref();
+    let mut result = String::with_capacity(s.len());
+    let mut last_was_underscore = false;
+
+    for c in s.chars() {
+        if result.is_empty() {
+            // First character MUST be alphabetic
+            if c.is_alphabetic() {
+                result.extend(c.to_uppercase());
+            }
+            // If it's a digit or symbol while result is empty, we just skip it
+        } else if c.is_alphanumeric() {
+            result.extend(c.to_uppercase());
+            last_was_underscore = false;
+        } else if !last_was_underscore {
+            result.push('_');
+            last_was_underscore = true;
+        }
+    }
+
+    // Clean up trailing underscores
+    if result.ends_with('_') {
+        result.pop();
+    }
+
+    result
+}
+
 /// Initialise the global tracing/logging subscriber.
 ///
 /// Sets up a compact stderr logger and installs a panic hook that logs panics.  When the
@@ -102,8 +140,8 @@ macro_rules! pluralize {
 ///
 /// Returns [`ShellError::Internal`] if a log tracer or tracing subscriber
 /// is already set.
-pub fn init_tracing(
-    name: impl Into<String>,
+pub fn init_tracing<T: AsRef<str>>(
+    name: T,
     quiet: bool,
     verbose: u8,
 ) -> Result<(bool, LevelFilter), ShellError> {
@@ -127,7 +165,7 @@ pub fn init_tracing(
 
     let registry = Registry::default();
 
-    let log_env_name = format!("{}_LOG", name.into().to_uppercase());
+    let log_env_name = format!("{}_LOG", make_env_ident(name));
 
     let rustyline_directive: Directive = "rustyline=warn"
         .parse()
@@ -241,6 +279,79 @@ mod tests {
         let a = get_cmd_basename("anything");
         let b = get_cmd_fallback();
         assert!(std::ptr::eq(a, b));
+    }
+
+    // -- make_env_ident ----------------------------------------------------
+
+    #[test]
+    fn env_ident_simple_name() {
+        assert_eq!(make_env_ident("myapp"), "MYAPP");
+    }
+
+    #[test]
+    fn env_ident_with_hyphens() {
+        assert_eq!(make_env_ident("my-cool-app"), "MY_COOL_APP");
+    }
+
+    #[test]
+    fn env_ident_with_mixed_case() {
+        assert_eq!(make_env_ident("MyApp"), "MYAPP");
+    }
+
+    #[test]
+    fn env_ident_leading_digits_skipped() {
+        assert_eq!(make_env_ident("123app"), "APP");
+    }
+
+    #[test]
+    fn env_ident_leading_symbols_skipped() {
+        assert_eq!(make_env_ident("--app"), "APP");
+    }
+
+    #[test]
+    fn env_ident_digits_after_alpha_kept() {
+        assert_eq!(make_env_ident("app2go"), "APP2GO");
+    }
+
+    #[test]
+    fn env_ident_consecutive_separators_collapsed() {
+        assert_eq!(make_env_ident("a--b__c..d"), "A_B_C_D");
+    }
+
+    #[test]
+    fn env_ident_trailing_separator_stripped() {
+        assert_eq!(make_env_ident("app-"), "APP");
+    }
+
+    #[test]
+    fn env_ident_empty_input() {
+        assert_eq!(make_env_ident(""), "");
+    }
+
+    #[test]
+    fn env_ident_all_symbols() {
+        assert_eq!(make_env_ident("---!!!---"), "");
+    }
+
+    #[test]
+    fn env_ident_single_char() {
+        assert_eq!(make_env_ident("x"), "X");
+    }
+
+    #[test]
+    fn env_ident_unicode_letters() {
+        assert_eq!(make_env_ident("café"), "CAFÉ");
+    }
+
+    #[test]
+    fn env_ident_spaces_become_underscores() {
+        assert_eq!(make_env_ident("my app name"), "MY_APP_NAME");
+    }
+
+    #[test]
+    fn env_ident_accepts_str_ref() {
+        let s = String::from("hello");
+        assert_eq!(make_env_ident(&s), "HELLO");
     }
 
     // -- init_tracing level selection --------------------------------------
