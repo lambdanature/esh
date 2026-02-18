@@ -33,7 +33,10 @@ check-precommit:
 precommit: check-precommit
 	.git/hooks/pre-commit
 
-check: check-precommit ## Check precommit, run clippy and check formatting
+verify-msrv:
+	cargo msrv verify
+
+check: check-precommit verify-msrv ## Check precommit, run clippy and check formatting
 	cargo clippy --all-targets --all-features
 	cargo fmt --all --check
 
@@ -62,6 +65,7 @@ tools: ## Update the rust environment
 	cargo install --locked cargo-audit
 	cargo install --locked cargo-nextest
 	cargo install --locked cargo-tarpaulin
+	cargo install --locked cargo-msrv
 
 init-git: ## Install precommit hooks
 	install -m 755 .git-pre-commit-template .git/hooks/pre-commit

@@ -31,5 +31,22 @@ if [ $? -ne 0 ]; then
     die "❌ Security audit failed! Check your dependencies."
 fi
 
+# Extract MSRV from Cargo.toml
+MSRV=$(grep -m 1 '^rust-version' Cargo.toml | cut -d '"' -f 2)
+
+if [ -z "$MSRV" ]; then
+    die "No rust-version found in Cargo.toml. Skipping MSRV check."
+fi
+
+warn "Checking MSRV compatibility ($MSRV)..."
+
+# Run cargo check using the specific toolchain
+# --profile dev is faster; --locked ensures we use the existing lockfile
+rustup run "$MSRV" cargo check --locked --profile dev
+
+if [ $? -ne 0 ]; then
+    die "MSRV Check Failed! Please fix compatibility issues before committing."
+fi
+
 warn "✅ All checks passed. Committing..."
 exit 0

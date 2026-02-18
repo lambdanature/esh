@@ -37,7 +37,10 @@
   - `#![cfg_attr(not(test), deny(clippy::unwrap_used))]`
   - `#![cfg_attr(not(test), deny(clippy::expect_used))]`
   - `#![cfg_attr(not(test), deny(clippy::panic))]`
-- [ ] Define and document **MSRV** (Minimum Supported Rust Version)
+- [X] Define and document **MSRV** (Minimum Supported Rust Version)
+  - [X] Define and document **MSRV** (Minimum Supported Rust Version)
+  - [X] Create pre-commit to test MSRV
+  - [X] Create CI pipeline to test MSRV
 - [ ] Set up **cargo-deny** and **cargo-audit** for dependency lifecycle
 - [ ] Add `#[forbid(unsafe_code)]` if applicable to the crate logic
 - [ ] Investigate `no_panic` crate for key functions
