@@ -12,7 +12,7 @@ fn esh() -> Command {
 #[test]
 fn version_outputs_package_info() {
     esh()
-        .args(["-p", "/tmp", "version"])
+        .args(["version"])
         .assert()
         .success()
         .stdout(predicate::str::contains("esh"))
