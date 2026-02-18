@@ -69,20 +69,7 @@
 | Delete resolved review items |
 +------------------------------+
 
-
 ## 4. Testing
-
-### 4.1 No tests for `shell.rs` (HIGH)
-
-The shell module (417 lines) has zero unit tests. This is the most complex module
-with macro-driven registration, command dispatch, and VFS integration.
-
-**Recommendation:** Add tests for at minimum:
-- `ShellConfig` builder (round-trip: build then inspect)
-- `BasicShell::build_cmd()` (verify registered subcommands appear)
-- Command dispatch (version, exit, pwd)
-- Handler ordering and `NotFound` fallthrough
-- Error paths (missing VFS, unknown subcommand)
 
 ### 4.2 No tests for `util.rs` (MEDIUM)
 
@@ -102,12 +89,6 @@ with `assert_cmd` or similar.
 - `esh -p . pwd` outputs the CWD
 - `esh -p /nonexistent pwd` produces an error
 - Unknown commands print help
-
-## 7. Platform & Portability
-
-## 8. Dependencies
-
-## 9. Security & Hardening
 
 ### 9.1 No input length limits (LOW)
 

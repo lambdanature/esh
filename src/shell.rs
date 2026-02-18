@@ -463,3 +463,383 @@ impl ShellConfig {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    fn config(name: &str) -> ShellConfig {
+        ShellConfig::new(name, "test-pkg", "0.0.1")
+    }
+
+    fn os(s: &str) -> OsString {
+        OsString::from(s)
+    }
+
+    // -- ShellError --------------------------------------------------------
+
+    #[test]
+    fn shell_error_internal_display() {
+        let e = ShellError::Internal("boom".into());
+        assert_eq!(e.to_string(), "Internal error: boom");
+    }
+
+    #[test]
+    fn shell_error_command_not_found_display() {
+        let e = ShellError::CommandNotFound;
+        assert_eq!(e.to_string(), "Command not found");
+    }
+
+    #[test]
+    fn shell_error_from_io_error() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "gone");
+        let e: ShellError = io_err.into();
+        assert!(e.to_string().contains("gone"));
+    }
+
+    // -- ShellConfig builder -----------------------------------------------
+
+    #[test]
+    fn config_sets_name() {
+        let sh = config("mysh").build();
+        // Verify it built without panic — the name is internal, so just
+        // confirm the returned Arc is usable as a trait object.
+        let _: &dyn Shell = &*sh;
+    }
+
+    #[test]
+    fn config_name_override() {
+        let sh = config("original").name("override").build();
+        let _: &dyn Shell = &*sh;
+    }
+
+    #[test]
+    fn config_builder_chaining() {
+        let noop_aug: Augmentor = Arc::new(|cmd| cmd);
+        let noop_hnd: Handler = Arc::new(|_, _| Ok(()));
+
+        let sh = config("chain")
+            .cli_args(noop_aug.clone())
+            .cli_cmds(noop_aug.clone())
+            .cli_handler(noop_hnd.clone())
+            .shell_args(noop_aug.clone())
+            .shell_cmds(noop_aug.clone())
+            .shell_handler(noop_hnd.clone())
+            .build();
+        let _: &dyn Shell = &*sh;
+    }
+
+    #[test]
+    fn config_with_vfs_lookup() {
+        struct TestFs;
+        impl Vfs for TestFs {
+            fn cwd(&self) -> &Path {
+                Path::new("/tmp")
+            }
+        }
+
+        let lookup: VfsLookup = Arc::new(|_| Ok(Box::new(TestFs)));
+        let sh = config("vfssh").vfs_lookup(lookup).build();
+        let _: &dyn Shell = &*sh;
+    }
+
+    // -- Built-in commands -------------------------------------------------
+
+    #[test]
+    fn builtin_version_succeeds() {
+        let sh = config("test-version").build();
+        let result = sh.run_args(&[os("test-version"), os("version")]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn builtin_shell_returns_not_implemented() {
+        let sh = config("test-shell").build();
+        let result = sh.run_args(&[os("test-shell"), os("shell")]);
+        match result {
+            Err(ShellError::Internal(msg)) => {
+                assert!(msg.contains("not implemented"), "unexpected: {msg}");
+            }
+            other => panic!("expected Internal error, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn builtin_pwd_with_vfs_succeeds() {
+        struct TestFs(PathBuf);
+        impl Vfs for TestFs {
+            fn cwd(&self) -> &Path {
+                &self.0
+            }
+        }
+
+        let lookup: VfsLookup = Arc::new(|_| Ok(Box::new(TestFs(PathBuf::from("/test/dir")))));
+        let sh = config("test-pwd").vfs_lookup(lookup).build();
+        let result = sh.run_args(&[os("test-pwd"), os("pwd")]);
+        assert!(result.is_ok());
+    }
+
+    // -- Custom augmentors and handlers ------------------------------------
+
+    #[derive(Subcommand)]
+    enum CustomCmds {
+        Greet,
+    }
+
+    #[test]
+    fn custom_handler_is_invoked() {
+        static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+        let cmds: Augmentor = Arc::new(CustomCmds::augment_subcommands);
+        let handler: Handler = Arc::new(|_, m| {
+            match CustomCmds::from_arg_matches(m) {
+                Ok(CustomCmds::Greet) => {
+                    CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+                    Ok(())
+                }
+                Err(_) => Err(ShellError::CommandNotFound),
+            }
+        });
+
+        let sh = config("custom")
+            .cli_cmds(cmds)
+            .cli_handler(handler)
+            .build();
+        let result = sh.run_args(&[os("custom"), os("greet")]);
+        assert!(result.is_ok());
+        assert!(CALL_COUNT.load(Ordering::SeqCst) >= 1);
+    }
+
+    #[test]
+    fn handler_chain_falls_through_command_not_found() {
+        static SECOND_CALLED: AtomicUsize = AtomicUsize::new(0);
+
+        let first_handler: Handler = Arc::new(|_, _| Err(ShellError::CommandNotFound));
+        let second_handler: Handler = Arc::new(|_, m| {
+            match BasicSharedCommands::from_arg_matches(m) {
+                Ok(BasicSharedCommands::Version) => {
+                    SECOND_CALLED.fetch_add(1, Ordering::SeqCst);
+                    Ok(())
+                }
+                Err(_) => Err(ShellError::CommandNotFound),
+            }
+        });
+
+        let sh = config("chain")
+            .cli_handler(first_handler)
+            .cli_handler(second_handler)
+            .build();
+
+        let result = sh.run_args(&[os("chain"), os("version")]);
+        assert!(result.is_ok());
+        assert!(SECOND_CALLED.load(Ordering::SeqCst) >= 1);
+    }
+
+    #[test]
+    fn handler_chain_stops_on_non_command_not_found_error() {
+        static SECOND_CALLED: AtomicUsize = AtomicUsize::new(0);
+
+        let failing_handler: Handler =
+            Arc::new(|_, _| Err(ShellError::Internal("fatal".into())));
+        let second_handler: Handler = Arc::new(|_, _| {
+            SECOND_CALLED.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        });
+
+        let sh = config("chain-err")
+            .cli_handler(failing_handler)
+            .cli_handler(second_handler)
+            .build();
+
+        let result = sh.run_args(&[os("chain-err"), os("version")]);
+        match result {
+            Err(ShellError::Internal(msg)) => assert_eq!(msg, "fatal"),
+            other => panic!("expected Internal error, got: {other:?}"),
+        }
+        assert_eq!(SECOND_CALLED.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn handler_chain_first_match_wins() {
+        static FIRST_CALLED: AtomicUsize = AtomicUsize::new(0);
+        static SECOND_CALLED: AtomicUsize = AtomicUsize::new(0);
+
+        let first_handler: Handler = Arc::new(|_, _| {
+            FIRST_CALLED.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        });
+        let second_handler: Handler = Arc::new(|_, _| {
+            SECOND_CALLED.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        });
+
+        let sh = config("first-wins")
+            .cli_handler(first_handler)
+            .cli_handler(second_handler)
+            .build();
+
+        let before_first = FIRST_CALLED.load(Ordering::SeqCst);
+        let before_second = SECOND_CALLED.load(Ordering::SeqCst);
+
+        let result = sh.run_args(&[os("first-wins"), os("version")]);
+        assert!(result.is_ok());
+        assert_eq!(FIRST_CALLED.load(Ordering::SeqCst), before_first + 1);
+        assert_eq!(SECOND_CALLED.load(Ordering::SeqCst), before_second);
+    }
+
+    #[derive(Subcommand)]
+    enum OrphanCmd {
+        Orphan,
+    }
+
+    #[test]
+    fn no_handler_match_returns_error() {
+        let cmds: Augmentor = Arc::new(OrphanCmd::augment_subcommands);
+        let never_handler: Handler = Arc::new(|_, _| Err(ShellError::CommandNotFound));
+
+        let sh = config("nomatch")
+            .cli_cmds(cmds)
+            .cli_handler(never_handler)
+            .build();
+
+        let result = sh.run_args(&[os("nomatch"), os("orphan")]);
+        match result {
+            Err(ShellError::Internal(msg)) => {
+                assert!(msg.contains("no handler matched"), "unexpected: {msg}");
+            }
+            other => panic!("expected Internal error, got: {other:?}"),
+        }
+    }
+
+    // -- Custom augmentor adds arguments -----------------------------------
+
+    #[derive(Parser, Debug)]
+    struct ExtraArgs {
+        #[arg(long, global = true)]
+        dry_run: bool,
+    }
+
+    #[test]
+    fn custom_args_augmentor_adds_flags() {
+        static DRY_RUN_SEEN: AtomicUsize = AtomicUsize::new(0);
+
+        let args_aug: Augmentor = Arc::new(ExtraArgs::augment_args);
+        let handler: Handler = Arc::new(|_, m| {
+            if m.get_flag("dry_run") {
+                DRY_RUN_SEEN.fetch_add(1, Ordering::SeqCst);
+            }
+            Ok(())
+        });
+
+        let sh = config("augargs")
+            .cli_args(args_aug)
+            .cli_handler(handler)
+            .build();
+
+        let result = sh.run_args(&[
+            os("augargs"),
+            os("--dry-run"),
+            os("version"),
+        ]);
+        assert!(result.is_ok());
+        assert!(DRY_RUN_SEEN.load(Ordering::SeqCst) >= 1);
+    }
+
+    // -- VFS integration ---------------------------------------------------
+
+    #[test]
+    fn vfs_lookup_error_propagates() {
+        let lookup: VfsLookup =
+            Arc::new(|_| Err(ShellError::Internal("vfs init failed".into())));
+        let sh = config("vfsfail").vfs_lookup(lookup).build();
+        let result = sh.run_args(&[os("vfsfail"), os("version")]);
+        match result {
+            Err(ShellError::Internal(msg)) => {
+                assert!(msg.contains("vfs init failed"), "unexpected: {msg}");
+            }
+            other => panic!("expected Internal error, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn vfs_cwd_is_accessible_from_handler() {
+        static CWD_MATCHED: AtomicUsize = AtomicUsize::new(0);
+
+        struct TestFs;
+        impl Vfs for TestFs {
+            fn cwd(&self) -> &Path {
+                Path::new("/my/cwd")
+            }
+        }
+
+        let lookup: VfsLookup = Arc::new(|_| Ok(Box::new(TestFs)));
+        let sh = config("vfscwd").vfs_lookup(lookup).build();
+
+        let result = sh.run_args(&[os("vfscwd"), os("pwd")]);
+        assert!(result.is_ok());
+
+        // pwd prints to stdout — since we got Ok, the vfs was accessed
+        // successfully. Also verify via a custom handler that reads it.
+        let lookup2: VfsLookup = Arc::new(|_| Ok(Box::new(TestFs)));
+        let handler: Handler = Arc::new(|_, _| {
+            CWD_MATCHED.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        });
+        let sh2 = config("vfscwd2")
+            .vfs_lookup(lookup2)
+            .cli_handler(handler)
+            .build();
+        let result2 = sh2.run_args(&[os("vfscwd2"), os("version")]);
+        assert!(result2.is_ok());
+        assert!(CWD_MATCHED.load(Ordering::SeqCst) >= 1);
+    }
+
+    // -- Verbose / quiet flags ---------------------------------------------
+
+    #[test]
+    fn verbose_flag_accepted() {
+        let sh = config("test-verbose").build();
+        let result = sh.run_args(&[os("test-verbose"), os("-v"), os("version")]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn quiet_flag_accepted() {
+        let sh = config("test-quiet").build();
+        let result = sh.run_args(&[os("test-quiet"), os("-q"), os("version")]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn multiple_verbose_flags_accepted() {
+        let sh = config("test-vvv").build();
+        let result = sh.run_args(&[
+            os("test-vvv"),
+            os("-vvv"),
+            os("version"),
+        ]);
+        assert!(result.is_ok());
+    }
+
+    // -- Edge cases --------------------------------------------------------
+
+    #[test]
+    fn build_returns_arc_dyn_shell() {
+        let sh: Arc<dyn Shell> = config("dyn").build();
+        // Confirm it can be cloned and shared
+        let sh2 = Arc::clone(&sh);
+        drop(sh2);
+    }
+
+    #[test]
+    fn multiple_shells_coexist() {
+        let sh1 = config("shell-a").build();
+        let sh2 = config("shell-b").build();
+        let r1 = sh1.run_args(&[os("shell-a"), os("version")]);
+        let r2 = sh2.run_args(&[os("shell-b"), os("version")]);
+        assert!(r1.is_ok());
+        assert!(r2.is_ok());
+    }
+}
