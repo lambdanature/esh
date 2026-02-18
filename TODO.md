@@ -153,25 +153,13 @@ safety, but CI is essential for PRs and cross-platform validation.
 **Recommendation:** Add a `.github/workflows/ci.yml` that runs `cargo fmt
 --check`, `cargo clippy -- -D warnings`, `cargo test`, and `cargo audit`.
 
-### 10.2 `.gitignore` has duplicate `/target` entries (TRIVIAL)
-
-Lines 4 and 26 both ignore `target`. The first (`target` without leading slash)
-is broader; the second (`/target`) is more specific. Keep only one.
-
----
-
 ## Prioritized Action Items
 
 | Priority | Item | Section |
 |----------|------|---------|
-| **P0** | Fix silent argument dropping in `Shell::run()` | 1.1 |
-| **P0** | Fix octal escape overflow | 1.2 |
-| **P0** | Remove `RwLock`/`Mutex` where unnecessary | 3.1 |
-| **P1** | Replace `.unwrap()` on locks with proper error handling | 2.1 |
+
 | **P1** | Add tests for `shell.rs` | 4.1 |
 | **P1** | Gate or abstract `unix::ffi::OsStringExt` | 7.1 |
 | **P2** | Add integration tests | 4.3 |
 | **P2** | Add tests for `util.rs` | 4.2 |
 | **P2** | Set up CI/CD | 10.1 |
-| **P3** | Add `#![forbid(unsafe_code)]` | 9.2 |
-| **P3** | Document MSRV | 9.3 |
