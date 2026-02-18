@@ -135,22 +135,6 @@ this. For a library published to crates.io, this should either:
 
 ## 8. Dependencies
 
-### 8.1 `rustyline` filter without `rustyline` dependency (TRIVIAL)
-
-**File:** `src/util.rs:104-108`
-
-```rust
-.add_directive(
-    "rustyline=warn"
-        .parse()
-        .expect("Failed to parse rustyline directive"),
-);
-```
-
-The `rustyline` crate is not a dependency. This is presumably forward-looking for
-the REPL feature. Consider adding a comment explaining this, or gating it behind
-a feature flag.
-
 ### 8.2 `tracing-log` bridge may be unnecessary (TRIVIAL)
 
 `tracing-log` bridges the `log` crate to `tracing`, but no current dependency
