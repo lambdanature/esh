@@ -238,11 +238,11 @@ impl BasicShell {
 
     // // execute a line from within the shell
     // fn execute_line(&self, line: &str) {
-    //     die!(self, "not implemented: execute_line {}", line);
+    //     todo!()
     // }
 
     // fn execute_args(&self) {
-    //     die!(self, "not implemented: execute_args");
+    //     todo!()
     // }
 
     fn build_cmd(&self) -> Command {

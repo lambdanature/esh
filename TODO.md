@@ -70,24 +70,6 @@
 +------------------------------+
 
 
-### 2.2 `die!` macro calls `std::process::exit(1)` (MEDIUM)
-
-**File:** `src/util.rs:39-55`
-
-`std::process::exit()` terminates immediately without running destructors. This
-means:
-- Open files may not be flushed
-- Temporary files from VFS backends won't be cleaned up
-- Lock guards are not dropped
-- Buffered log output may be lost
-
-This is especially problematic for a *library* crate — callers don't expect
-library code to terminate their process.
-
-**Recommendation:** Return `Result` types from library functions instead of
-calling `die!`. Reserve `process::exit` for the binary crate only. At the very
-least, flush stderr before exiting.
-
 ### 2.3 `create_vfs` in binary calls `process::exit(1)` (MEDIUM)
 
 **File:** `src/main.rs:48-49`
