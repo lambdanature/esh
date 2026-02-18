@@ -4,7 +4,7 @@ use clap::{ArgAction, ArgMatches, Args, Command, FromArgMatches, Parser, Subcomm
 use thiserror::Error;
 
 use std::ffi::OsString;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, Weak};
 
 #[allow(unused_imports)]
 use tracing::{debug, error, info, trace, warn};
@@ -55,64 +55,62 @@ struct BasicShell {
     name: String,
     pkg_name: String,
     version: String,
-    cli_group: RwLock<CommandGroup>,
-    shell_group: RwLock<CommandGroup>,
+    cli_group: CommandGroup,
+    #[allow(dead_code)] // used by future REPL mode
+    shell_group: CommandGroup,
     vfs_lookup: Option<VfsLookup>,
     vfs: Mutex<Option<Box<dyn Vfs>>>,
 }
 
-/// DSL for registering subcommands, arguments, and handlers on a `BasicShell`.
+/// DSL for registering subcommands, arguments, and handlers on mutable
+/// `CommandGroup` locals. No locks are required — all registration happens
+/// before the groups are moved into the `BasicShell` struct.
 ///
-/// Each statement is one of three verbs followed by a path and a list of target
-/// command groups (fields on `BasicShell`) to register into:
-///
-///   - `CMDS <Type> [groups..]` — registers `<Type>::augment_subcommands` as a
-///     subcommand augmentor on each listed group.
-///   - `ARGS <Type> [groups..]` — registers `<Type>::augment_args` as an
-///     argument augmentor on each listed group.
-///   - `HNDS <fn>   [groups..]` — wraps `<fn>` in a `Handler` closure (capturing
-///     a clone of the shell) and registers it on each listed group.
+///   - `CMDS <Type> [groups..]` — registers `<Type>::augment_subcommands`
+///   - `ARGS <Type> [groups..]` — registers `<Type>::augment_args`
+///   - `HNDS <fn>   [groups..]` — wraps `<fn>` in a `Handler` closure that
+///     captures a `Weak<BasicShell>` (must be called inside `Arc::new_cyclic`)
 ///
 /// # Example
 ///
 /// ```ignore
-/// add_sh!(sh => {
+/// add_sh!(weak => {
 ///     CMDS BasicSharedCommands          [ shell_group, cli_group ],
 ///     HNDS handle_basic_shared_command  [ shell_group, cli_group ],
 ///     ARGS BasicCliArgs                 [              cli_group ],
 /// });
 /// ```
-///
-/// This expands to code that clones `sh`, then for each statement pushes the
-/// appropriate augmentor or handler into the `cmds`, `args`, or `hnds` vec of
-/// every listed `CommandGroup`.
 macro_rules! add_sh {
     // Did anybody ask for a DSL here? No. But was it fun to build? YES! - @lambdanature
 
-    // Top-level macro: <shell> => { <statements>* }
-    ($sh:expr => { $($method:ident $what:path [$($group:ident),* $(,)?] ),* $(,)? } ) => {{
-        // Force typecheck of $sh, we don't want to clone non-Arc<> values
-        let ash: Arc<BasicShell> = $sh.clone();
-        $( add_sh!(@add ash $method $what [ $( $group )* ] ); )*
+    // Top-level entry: $weak is a &Weak<BasicShell> from Arc::new_cyclic
+    ($weak:ident => {
+        $($method:ident $what:path [$($group:ident),* $(,)?] ),* $(,)?
+    }) => {{
+        $( add_sh!(@add $weak, $method $what [ $( $group )* ] ); )*
     }};
 
-    // Recursive macro: CMDS <CommandStruct> [ <group>* ]
-    (@add $ash:ident CMDS $what:path [ $( $group:ident )* ] ) => {{
-        type What = $what; // Needed to allow appending to a path match
+    // CMDS — no Weak needed
+    (@add $weak:ident, CMDS $what:path [ $( $group:ident )* ] ) => {{
+        type What = $what;
         let aug = Arc::new(What::augment_subcommands);
-        $( $ash.$group.write().unwrap().cmds.push(aug.clone()); )*
+        $( $group.cmds.push(aug.clone()); )*
     }};
-    // Recursive macro: ARGS <ArgStruct> [ <group>* ]
-    (@add $ash:ident ARGS $what:path [ $( $group:ident )* ] ) => {{
-        type What = $what; // Needed to allow appending to a path match
+
+    // ARGS — no Weak needed
+    (@add $weak:ident, ARGS $what:path [ $( $group:ident )* ] ) => {{
+        type What = $what;
         let aug = Arc::new(What::augment_args);
-        $( $ash.$group.write().unwrap().args.push(aug.clone()); )*
+        $( $group.args.push(aug.clone()); )*
     }};
-    // Recursive macro: HNDS <ArgMatchHandlerFn> [ <group>* ]
-    (@add $ash:ident HNDS $what:path [ $( $group:ident )* ] ) => {{
-        let ash_cap = $ash.clone();
-        let hnd: Handler = Arc::new(move |_, m| $what(&ash_cap, m));
-        $( $ash.$group.write().unwrap().hnds.push(hnd.clone()); )*
+
+    // HNDS — captures a Weak clone, upgrades when called
+    (@add $weak:ident, HNDS $what:path [ $( $group:ident )* ] ) => {{
+        let w = Weak::clone(&$weak);
+        let hnd: Handler = Arc::new(move |_, m| {
+            $what(&w.upgrade().expect("shell dropped while handler active"), m)
+        });
+        $( $group.hnds.push(hnd.clone()); )*
     }};
 }
 
@@ -176,7 +174,7 @@ enum VfsSharedCommands {
 fn handle_vfs_shared_command(sh: &BasicShell, matches: &ArgMatches) -> Result<(), ShellError> {
     match VfsSharedCommands::from_arg_matches(matches) {
         Ok(VfsSharedCommands::Pwd) => {
-            let vfs_guard = sh.vfs.lock().unwrap();
+            let vfs_guard = sh.vfs.lock().expect("vfs mutex poisoned");
             if let Some(fs) = &*vfs_guard {
                 println!("{}", fs.cwd().display());
                 Ok(())
@@ -197,36 +195,45 @@ impl BasicShell {
         cli_group: CommandGroup,
         vfs_lookup: Option<VfsLookup>,
     ) -> Arc<BasicShell> {
-        let sh = Arc::new(BasicShell {
-            name,
-            pkg_name,
-            version,
-            shell_group: RwLock::new(shell_group),
-            cli_group: RwLock::new(cli_group),
-            vfs_lookup,
-            vfs: Mutex::new(None),
-        });
+        let has_vfs = vfs_lookup.is_some();
+        let mut shell_group = shell_group;
+        let mut cli_group = cli_group;
 
-        add_sh!(sh => {
-            CMDS BasicSharedCommands           [ shell_group, cli_group ],
-            HNDS handle_basic_shared_command   [ shell_group, cli_group ],
+        // Build the Arc with new_cyclic so handler closures can capture a
+        // Weak reference to the shell being constructed. The Weak is
+        // guaranteed to upgrade successfully whenever a handler runs,
+        // because the Arc owns the shell and handlers only run while it
+        // is alive.
+        Arc::new_cyclic(|weak: &Weak<BasicShell>| {
+            add_sh!(weak => {
+                CMDS BasicSharedCommands           [ shell_group, cli_group ],
+                HNDS handle_basic_shared_command   [ shell_group, cli_group ],
 
-            CMDS BasicShellCommands            [ shell_group            ],
-            HNDS handle_basic_shell_command    [ shell_group            ],
+                CMDS BasicShellCommands            [ shell_group            ],
+                HNDS handle_basic_shell_command    [ shell_group            ],
 
-            CMDS BasicCliCommands              [              cli_group ],
-            ARGS BasicCliArgs                  [              cli_group ],
-            HNDS handle_basic_cli_command      [              cli_group ],
-        });
-
-        if let Some(_vfs_lookup) = &sh.vfs_lookup {
-            add_sh!(sh => {
-                CMDS VfsSharedCommands         [ shell_group, cli_group ],
-                HNDS handle_vfs_shared_command [ shell_group, cli_group ],
+                CMDS BasicCliCommands              [              cli_group ],
+                ARGS BasicCliArgs                  [              cli_group ],
+                HNDS handle_basic_cli_command      [              cli_group ],
             });
-        }
 
-        sh
+            if has_vfs {
+                add_sh!(weak => {
+                    CMDS VfsSharedCommands         [ shell_group, cli_group ],
+                    HNDS handle_vfs_shared_command [ shell_group, cli_group ],
+                });
+            }
+
+            BasicShell {
+                name,
+                pkg_name,
+                version,
+                shell_group,
+                cli_group,
+                vfs_lookup,
+                vfs: Mutex::new(None),
+            }
+        })
     }
 
     // // execute a line from within the shell
@@ -243,15 +250,11 @@ impl BasicShell {
             .subcommand_required(true)
             .arg_required_else_help(true);
 
-        let cli_group = self.cli_group.read().unwrap();
-
-        // Run all registered arg augmentors - this is where we register args
-        for args in &cli_group.args {
+        for args in &self.cli_group.args {
             cmd = (args)(cmd);
         }
 
-        // Run all registered cmd augmentors - this is where we register subcommands
-        for cmds in &cli_group.cmds {
+        for cmds in &self.cli_group.cmds {
             cmd = (cmds)(cmd);
         }
 
@@ -300,10 +303,10 @@ impl Shell for BasicShell {
 
         if let Some(vfs_lookup) = &self.vfs_lookup {
             let vfs = (vfs_lookup)(&matches)?;
-            *self.vfs.lock().unwrap() = Some(vfs);
+            *self.vfs.lock().expect("vfs mutex poisoned") = Some(vfs);
         }
 
-        for handler in &self.cli_group.read().unwrap().hnds {
+        for handler in &self.cli_group.hnds {
             match (handler)(self, &matches) {
                 Ok(()) => return Ok(()),
                 Err(ShellError::CommandNotFound) => continue,

@@ -70,27 +70,6 @@
 +------------------------------+
 
 
-## 2. Error Handling & Robustness
-
-### 2.1 Pervasive `.unwrap()` on lock acquisition (HIGH)
-
-**File:** `src/shell.rs` — lines 96, 102, 108, 172, 240, 294, 300
-
-Every `RwLock::read().unwrap()` and `Mutex::lock().unwrap()` will panic if the
-lock is poisoned (i.e., a previous holder panicked). Since the `add_sh!` macro
-uses `.write().unwrap()` and handlers use `.lock().unwrap()`, a single panic in
-any handler poisons the lock and crashes the entire shell on the next access.
-
-**Recommendation:**
-- Short term: Replace `.unwrap()` with `.expect("context message")` so panics
-  are diagnosable.
-- Medium term: Since `CommandGroup` fields are only written during
-  `BasicShell::new()` and read-only afterwards, consider removing the `RwLock`
-  entirely. Construct the groups fully before wrapping in `Arc`, then store them
-  as plain fields. This eliminates runtime lock overhead and poison risk.
-- The TODO in `TODO.md` already lists Clippy lints for `unwrap_used` —
-  implementing that would catch all these.
-
 ### 2.2 `die!` macro calls `std::process::exit(1)` (MEDIUM)
 
 **File:** `src/util.rs:39-55`
