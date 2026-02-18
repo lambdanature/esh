@@ -22,6 +22,7 @@ fn version_outputs_package_info() {
 // -- pwd -------------------------------------------------------------------
 
 #[test]
+#[cfg(not(target_os = "windows"))]
 fn pwd_with_tmp() {
     esh()
         .args(["-p", "/tmp", "pwd"])
