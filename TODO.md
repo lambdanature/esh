@@ -5,6 +5,7 @@
 ## Missing Features
 
 - [ ] Interactive REPL
+  - [ ] Input line length limits to protect from OOM
 - [ ] real alias support (think ll='ls -l' etc.)
 - [ ] Parsing / Escape cleanliness
 - [ ] Additional VFS features and corresponding commands
@@ -68,14 +69,6 @@
 +------------------------------+
 | Delete resolved review items |
 +------------------------------+
-
-## 4. Testing
-
-### 9.1 No input length limits (LOW)
-
-The parser will happily process arbitrarily long input strings. For an
-embeddable shell that might accept user input over a network or IPC, consider
-adding configurable maximum input length.
 
 ## 10. Build & Tooling
 
