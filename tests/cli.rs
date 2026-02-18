@@ -82,10 +82,7 @@ fn no_args_shows_help() {
         .assert()
         .failure()
         .code(2)
-        .stderr(
-            predicate::str::contains("Usage")
-                .and(predicate::str::contains("COMMAND")),
-        );
+        .stderr(predicate::str::contains("Usage").and(predicate::str::contains("COMMAND")));
 }
 
 // -- flags -----------------------------------------------------------------
@@ -119,15 +116,11 @@ fn multiple_verbose_flags_accepted() {
 
 #[test]
 fn help_flag_shows_help() {
-    esh()
-        .arg("--help")
-        .assert()
-        .success()
-        .stdout(
-            predicate::str::contains("Usage")
-                .and(predicate::str::contains("Options"))
-                .and(predicate::str::contains("Commands")),
-        );
+    esh().arg("--help").assert().success().stdout(
+        predicate::str::contains("Usage")
+            .and(predicate::str::contains("Options"))
+            .and(predicate::str::contains("Commands")),
+    );
 }
 
 #[test]
