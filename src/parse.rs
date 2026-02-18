@@ -130,16 +130,15 @@ fn shell_parse_arg_inner(
 /// # Ok::<(), ShellParseError>(())
 /// ```
 pub fn shell_parse_line(input: &str) -> Result<Vec<OsString>, ShellParseError> {
-    let mut words: Vec<OsString> = Vec::new();
-    let mut current: Vec<u8> = Vec::new();
-    let mut in_word = false;
-    let mut chars = input.chars().peekable();
-
     enum State {
         Normal,
         SingleQuoted,
     }
 
+    let mut words: Vec<OsString> = Vec::new();
+    let mut current: Vec<u8> = Vec::new();
+    let mut in_word = false;
+    let mut chars = input.chars().peekable();
     let mut state = State::Normal;
 
     while let Some(c) = chars.next() {
@@ -205,7 +204,7 @@ fn push_char(output: &mut Vec<u8>, c: char) {
 
 /// Convert an ASCII hex digit to its numeric value (0–15), or `None` if
 /// the character is not a hex digit.
-fn hex_digit(c: char) -> Option<u8> {
+const fn hex_digit(c: char) -> Option<u8> {
     match c {
         '0'..='9' => Some((c as u8) - b'0'),
         'a'..='f' => Some((c as u8) - b'a' + 10),
@@ -256,7 +255,7 @@ fn parse_backslash_escape(
             while count < 3 {
                 match chars.peek() {
                     Some(&d) if ('0'..='7').contains(&d) => {
-                        let next_value = value * 8 + (d as u16 - b'0' as u16);
+                        let next_value = value * 8 + (d as u16 - u16::from(b'0'));
                         if next_value > 255 {
                             break;
                         }
@@ -267,6 +266,7 @@ fn parse_backslash_escape(
                     _ => break,
                 }
             }
+            #[allow(clippy::cast_possible_truncation)] // guarded by the > 255 check above
             output.push(value as u8);
         }
 
@@ -307,7 +307,7 @@ fn parse_backslash_escape(
                         if count > 6 {
                             return Err(ShellParseError::InvalidUnicodeEscape);
                         }
-                        value = (value << 4) | h as u32;
+                        value = (value << 4) | u32::from(h);
                     }
                     None => return Err(ShellParseError::InvalidUnicodeEscape),
                 }
@@ -325,11 +325,10 @@ fn parse_backslash_escape(
             if in_double_quotes {
                 // POSIX: in double quotes, unknown \X is kept literally as \X
                 output.push(b'\\');
-                push_char(output, other);
-            } else {
-                // POSIX: in unquoted context, \ quotes the next character
-                push_char(output, other);
             }
+            // POSIX: in unquoted context, \ quotes the next character;
+            // in double quotes, the backslash is already emitted above.
+            push_char(output, other);
         }
     }
 

@@ -36,6 +36,7 @@ pub fn get_cmd_basename(fallback: impl Into<String>) -> &'static String {
 
 /// Convenience wrapper around [`get_cmd_basename`] that uses
 /// `CARGO_PKG_NAME` as the fallback.
+#[must_use]
 pub fn get_cmd_fallback() -> &'static String {
     get_cmd_basename(env!("CARGO_PKG_NAME"))
 }
@@ -93,8 +94,12 @@ macro_rules! pluralize {
 /// Sets up a compact stderr logger, bridges the `log` crate via
 /// [`tracing_log`], and installs a panic hook that logs panics.
 ///
-/// Returns `(is_verbose, level_filter)` on success.  Fails with
-/// [`ShellError::Internal`] if a subscriber or logger is already set.
+/// Returns `(is_verbose, level_filter)` on success.
+///
+/// # Errors
+///
+/// Returns [`ShellError::Internal`] if a log tracer or tracing subscriber
+/// is already set.
 pub fn init_tracing(
     name: impl Into<String>,
     quiet: bool,

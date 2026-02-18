@@ -117,21 +117,6 @@ The 48 parser tests cover the main paths well. Consider adding:
 
 ## 5. Code Quality
 
-### 5.4 Pedantic clippy warnings (LOW)
-
-Running `cargo clippy -- -W clippy::pedantic -W clippy::nursery` produces 21
-warnings. Notable ones:
-- Missing `#[must_use]` on all `ShellConfig` builder methods and `build()`
-- `cast_lossless`: `h as u32` should be `u32::from(h)` in unicode parsing
-- `significant_drop_tightening`: `cli_group` lock held longer than needed in
-  `build_cmd()`
-- `uninlined_format_args`: format strings in `main.rs` should use inline
-  variables
-- `items_after_statements`: `State` enum declared after `let` bindings in
-  `shell_parse_line`
-
----
-
 ## 6. API & Documentation
 
 ### 6.2 `Shell` trait is too thin to be useful as a trait (MEDIUM)
@@ -245,7 +230,5 @@ is broader; the second (`/target`) is more specific. Keep only one.
 | **P2** | Add integration tests | 4.3 |
 | **P2** | Add tests for `util.rs` | 4.2 |
 | **P2** | Set up CI/CD | 10.1 |
-| **P2** | Add `#[must_use]` to builder methods | 5.5 |
-| **P3** | Fix pedantic clippy warnings | 5.5 |
 | **P3** | Add `#![forbid(unsafe_code)]` | 9.2 |
 | **P3** | Document MSRV | 9.3 |

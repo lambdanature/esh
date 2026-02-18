@@ -29,9 +29,19 @@ pub enum ShellError {
 /// Implementations handle argument parsing, command dispatch, and VFS setup.
 pub trait Shell {
     /// Parse arguments from the process environment and run the shell.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ShellError`] if argument parsing, tracing initialisation,
+    /// VFS setup, or command dispatch fails.
     fn run(&self) -> Result<(), ShellError>;
 
     /// Run the shell with the given pre-parsed argument list.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ShellError`] if tracing initialisation, VFS setup, or
+    /// command dispatch fails.
     fn run_args(&self, args: &[OsString]) -> Result<(), ShellError>;
 }
 
@@ -194,12 +204,13 @@ fn handle_vfs_shared_command(sh: &BasicShell, matches: &ArgMatches) -> Result<()
     match VfsSharedCommands::from_arg_matches(matches) {
         Ok(VfsSharedCommands::Pwd) => {
             let vfs_guard = sh.vfs.lock().expect("vfs mutex poisoned");
-            if let Some(fs) = &*vfs_guard {
-                println!("{}", fs.cwd().display());
-                Ok(())
-            } else {
-                Err(ShellError::Internal("no current cwd".into()))
-            }
+            (*vfs_guard).as_ref().map_or_else(
+                || Err(ShellError::Internal("no current cwd".into())),
+                |fs| {
+                    println!("{}", fs.cwd().display());
+                    Ok(())
+                },
+            )
         }
         Err(_) => Err(ShellError::CommandNotFound),
     }
@@ -213,7 +224,7 @@ impl BasicShell {
         shell_group: CommandGroup,
         cli_group: CommandGroup,
         vfs_lookup: Option<VfsLookup>,
-    ) -> Arc<BasicShell> {
+    ) -> Arc<Self> {
         let has_vfs = vfs_lookup.is_some();
         let mut shell_group = shell_group;
         let mut cli_group = cli_group;
@@ -223,7 +234,7 @@ impl BasicShell {
         // guaranteed to upgrade successfully whenever a handler runs,
         // because the Arc owns the shell and handlers only run while it
         // is alive.
-        Arc::new_cyclic(|weak: &Weak<BasicShell>| {
+        Arc::new_cyclic(|weak: &Weak<Self>| {
             add_sh!(weak => {
                 CMDS BasicSharedCommands           [ shell_group, cli_group ],
                 HNDS handle_basic_shared_command   [ shell_group, cli_group ],
@@ -243,7 +254,7 @@ impl BasicShell {
                 });
             }
 
-            BasicShell {
+            Self {
                 name,
                 pkg_name,
                 version,
@@ -325,7 +336,7 @@ impl Shell for BasicShell {
         for handler in &self.cli_group.hnds {
             match (handler)(self, &matches) {
                 Ok(()) => return Ok(()),
-                Err(ShellError::CommandNotFound) => continue,
+                Err(ShellError::CommandNotFound) => {}
                 Err(e) => return Err(e),
             }
         }
@@ -340,6 +351,7 @@ impl Shell for BasicShell {
 ///
 /// Use [`shell_config!`] for a convenient starting point that automatically
 /// fills in the binary name, package name, and version from Cargo metadata.
+#[must_use]
 pub struct ShellConfig {
     name: String,
     pkg_name: String,
@@ -431,6 +443,7 @@ impl ShellConfig {
     }
 
     /// Build the configured shell and return it as an `Arc<dyn Shell>`.
+    #[must_use]
     pub fn build(self) -> Arc<dyn Shell + 'static> {
         BasicShell::new(
             self.name,
