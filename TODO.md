@@ -304,13 +304,6 @@ consumers.
 **Recommendation:** Document clearly that only the first call's fallback is used,
 or remove the cache and let callers cache if needed.
 
-### 4.4 [MEDIUM] Edition mismatch between `Cargo.toml` and `.rustfmt.toml`
-
-`Cargo.toml` specifies `edition = "2021"` while `.rustfmt.toml` specifies
-`edition = "2024"`. This means `rustfmt` may format code using 2024 edition
-syntax rules that the compiler doesn't expect. The mismatch should be resolved —
-either upgrade `Cargo.toml` to 2024 or downgrade `.rustfmt.toml` to 2021.
-
 ### 4.5 [LOW] `Vfs` trait only requires `Send`, not `Sync`
 
 **File:** `src/shell.rs:65`

@@ -1,5 +1,5 @@
 # Use the edition matching your Cargo.toml
-edition = "2024"
+edition = "2021"
 
 # Consistency & Readability
 newline_style = "Unix"
