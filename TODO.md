@@ -70,27 +70,6 @@
 +------------------------------+
 
 
-### 3.6 Double wrapping in `Arc` (LOW)
-
-**File:** `src/shell.rs:405-416`
-
-```rust
-pub fn build(self) -> Arc<dyn Shell + 'static> {
-    let sh = BasicShell::new(...); // returns Arc<BasicShell>
-    Arc::new(sh) as Arc<dyn Shell> // wraps Arc<BasicShell> in another Arc
-}
-```
-
-`BasicShell::new()` returns `Arc<BasicShell>`. Then `build()` wraps it in another
-`Arc`. Since `Shell` is implemented for `Arc<BasicShell>`, this creates an
-`Arc<Arc<BasicShell>>`. The extra indirection is unnecessary.
-
-**Recommendation:** Return the `Arc<BasicShell>` directly (cast to `Arc<dyn
-Shell>` without re-wrapping), or implement `Shell` only on `BasicShell` (not
-`Arc<BasicShell>`) and coerce directly.
-
----
-
 ## 4. Testing
 
 ### 4.1 No tests for `shell.rs` (HIGH)
@@ -306,7 +285,6 @@ is broader; the second (`/target`) is more specific. Keep only one.
 | **P0** | Fix silent argument dropping in `Shell::run()` | 1.1 |
 | **P0** | Fix octal escape overflow | 1.2 |
 | **P0** | Remove `RwLock`/`Mutex` where unnecessary | 3.1 |
-| **P0** | Fix double `Arc` wrapping | 3.6 |
 | **P1** | Replace `.unwrap()` on locks with proper error handling | 2.1 |
 | **P1** | Add tests for `shell.rs` | 4.1 |
 | **P1** | Add doc comments to public API | 6.1 |

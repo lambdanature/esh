@@ -327,15 +327,6 @@ impl Shell for BasicShell {
     }
 }
 
-impl Shell for Arc<BasicShell> {
-    fn run(&self) -> Result<(), ShellError> {
-        (**self).run()
-    }
-    fn run_args(&self, args: &[OsString]) -> Result<(), ShellError> {
-        (**self).run_args(args)
-    }
-}
-
 pub struct ShellConfig {
     name: String,
     pkg_name: String,
@@ -412,15 +403,13 @@ impl ShellConfig {
     }
 
     pub fn build(self) -> Arc<dyn Shell + 'static> {
-        let sh = BasicShell::new(
+        BasicShell::new(
             self.name,
             self.pkg_name,
             self.version,
             self.shell_group,
             self.cli_group,
             self.vfs_lookup,
-        );
-
-        Arc::new(sh) as Arc<dyn Shell>
+        )
     }
 }
