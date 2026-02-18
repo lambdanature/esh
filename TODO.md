@@ -170,46 +170,6 @@ macro's doc comment. Consider offering a `die!` variant that returns a `!`-typed
 error instead, or at minimum document that library code should prefer returning
 `ShellError`.
 
-### 1.4 [LOW] Mutex poisoning is handled correctly
-
-The `vfs` mutex lock calls in `shell.rs` (lines 209, 337–339) correctly convert
-`PoisonError` into `ShellError::Internal`. This is the right approach — no issues
-here.
-
----
-
-## 2. Security
-
-### 2.1 [HIGH] No input length limits in the parser
-
-**Files:** `src/parse.rs` (all public parsing functions)
-
-`shell_parse_line`, `shell_parse_arg`, and their `_bytes` variants accept
-arbitrary-length input with no bounds checking. A 1 GB string would cause
-unbounded heap allocation. The test suite confirms 100K-character inputs work;
-there is nothing preventing much larger inputs.
-
-For CLI-mode use (`run_args`), input comes from process arguments which are
-OS-limited. However, the planned REPL mode (noted in `TODO.md`) will accept
-interactive input, making this an OOM / denial-of-service vector.
-
-**Recommendation:** Add an optional `max_input_len` parameter or a configurable
-limit on `ShellConfig`. Reject inputs exceeding the limit with a clear error
-before parsing begins.
-
-### 2.2 [MEDIUM] No VFS path sandboxing / jail
-
-**File:** `src/main.rs:18–28`
-
-`parse_vfs_root` calls `canonicalize()` (which resolves symlinks — good), but
-there is no validation that the resolved path is within any expected boundary. If
-`esh` is deployed as a restricted shell or embedded in a service, a user could
-point `-p` at any readable directory on the filesystem (e.g. `/etc`, `/`).
-
-**Recommendation:** If sandboxing is a goal, validate that the canonicalized path
-is a descendant of an allowed root. At minimum, document the trust model: "the
-`-p` flag is trusted input — do not expose it to untrusted users."
-
 ### 2.3 [MEDIUM] Environment variable injection via shell name
 
 **File:** `src/util.rs:129`
@@ -228,20 +188,6 @@ problematic name.
 **Recommendation:** Sanitize the name (allow only `[A-Z0-9_]`) or validate it in
 `ShellConfig::new()`.
 
-### 2.4 [LOW] Dependencies are well-known and audited
-
-The direct dependencies (`clap`, `tracing`, `thiserror`, `os_str_bytes`,
-`tracing-subscriber`, `tracing-panic`) are high-profile, well-maintained crates.
-`vfs-kit` is less widely used — its security posture should be monitored. CI runs
-`cargo audit` via `rustsec/audit-check@v2`, which is good practice.
-
-### 2.5 [LOW] `DirFS::set_auto_clean(false)` — correctly prevents destructive cleanup
-
-**File:** `src/main.rs:47`
-
-Good practice. Without this, dropping the `DirFS` could delete the root directory.
-
----
 
 ## 3. Performance
 

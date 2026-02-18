@@ -5,6 +5,8 @@
 )]
 #![forbid(unsafe_code)]
 
+/// Note that in this example, the `-p` flag is trusted input —
+/// do not expose it to untrusted users for security sandboxing.
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
