@@ -26,7 +26,7 @@ pub enum ShellError {
 
 pub trait Shell {
     fn run(&self) -> Result<(), ShellError>;
-    fn run_args(&self, args: std::slice::Iter<OsString>) -> Result<(), ShellError>;
+    fn run_args(&self, args: &[OsString]) -> Result<(), ShellError>;
 }
 
 type AugmentorFn = dyn Fn(Command) -> Command + Send + Sync;
@@ -275,10 +275,10 @@ impl Shell for BasicShell {
             });
             args.push(parsed);
         }
-        self.run_args(args.iter())
+        self.run_args(&args)
     }
 
-    fn run_args(&self, args: std::slice::Iter<OsString>) -> Result<(), ShellError> {
+    fn run_args(&self, args: &[OsString]) -> Result<(), ShellError> {
         // First, evaluate the actual command line using external argv.
         // Then we determine if we need to go into interactive mode or
         // directly execute a command from argv.
@@ -331,7 +331,7 @@ impl Shell for Arc<BasicShell> {
     fn run(&self) -> Result<(), ShellError> {
         (**self).run()
     }
-    fn run_args(&self, args: std::slice::Iter<OsString>) -> Result<(), ShellError> {
+    fn run_args(&self, args: &[OsString]) -> Result<(), ShellError> {
         (**self).run_args(args)
     }
 }

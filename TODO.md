@@ -70,18 +70,6 @@
 +------------------------------+
 
 
-### 3.3 `Shell` trait's `run_args` uses concrete `std::slice::Iter` (LOW)
-
-**File:** `src/shell.rs:22`
-
-```rust
-fn run_args(&self, args: std::slice::Iter<OsString>) -> ExitCode;
-```
-
-This forces callers to have a `&[OsString]`. A more flexible signature would
-accept `impl IntoIterator<Item = impl AsRef<OsStr>>` or at least
-`&[OsString]` directly.
-
 ### 3.5 `Handler` / `Augmentor` type aliases are not public (LOW)
 
 Users must manually construct `Arc<dyn Fn(&dyn Shell, &ArgMatches) ->
