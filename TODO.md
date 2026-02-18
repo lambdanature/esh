@@ -147,23 +147,6 @@ mode. Not worth optimizing now.
 
 ## 4. Correctness & Design
 
-### 4.2 [MEDIUM] Global `INIT_LOGGING` makes multi-shell use silently incorrect
-
-**File:** `src/shell.rs:289, 313–328`
-
-`INIT_LOGGING` is a process-global `OnceLock`. If two `BasicShell` instances are
-created with different verbosity settings, the first one's settings win and the
-second silently uses them. The `get_or_init` call will return the first result,
-and `init_tracing` will fail on the second call (global subscriber already set).
-
-This is documented by the test `init_tracing_second_call_fails`, so it's a known
-limitation. However, for library consumers who embed multiple shells (e.g. for
-different subsystems), this is a subtle footgun.
-
-**Recommendation:** Document this limitation in the `ShellConfig` API docs.
-Consider accepting a pre-configured tracing subscriber instead of always
-initializing one internally.
-
 ### 4.3 [MEDIUM] Global `BASENAME` cache in `get_cmd_basename`
 
 **File:** `src/util.rs:20–35`

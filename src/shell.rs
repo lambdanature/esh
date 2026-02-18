@@ -103,6 +103,7 @@ struct BasicShell {
     shell_group: CommandGroup,
     vfs_lookup: Option<VfsLookup>,
     vfs: Mutex<Option<Box<dyn Vfs>>>,
+    init_tracing: bool,
 }
 
 /// DSL for registering subcommands, arguments, and handlers
@@ -245,6 +246,7 @@ impl BasicShell {
         shell_group: CommandGroup,
         cli_group: CommandGroup,
         vfs_lookup: Option<VfsLookup>,
+        init_tracing: bool,
     ) -> Arc<Self> {
         let has_vfs = vfs_lookup.is_some();
         let mut shell_group = shell_group;
@@ -283,6 +285,7 @@ impl BasicShell {
                 cli_group,
                 vfs_lookup,
                 vfs: Mutex::new(None),
+                init_tracing,
             }
         })
     }
@@ -337,25 +340,27 @@ impl Shell for BasicShell {
             },
         };
 
-        let init_result = INIT_LOGGING.get_or_init(|| {
-            crate::init_tracing(
-                &self.name,
-                matches.get_flag("quiet"),
-                matches.get_count("verbose"),
-            )
-            .map(|(_, level_filter)| {
-                info!(
-                    "starting {} ({} {}), log level: {level_filter}",
-                    self.name,
-                    env!("CARGO_PKG_NAME"),
-                    env!("CARGO_PKG_VERSION")
-                );
-            })
-            .map_err(|e| format!("{e}"))
-        });
+        if self.init_tracing {
+            let init_result = INIT_LOGGING.get_or_init(|| {
+                crate::init_tracing(
+                    &self.name,
+                    matches.get_flag("quiet"),
+                    matches.get_count("verbose"),
+                )
+                .map(|(_, level_filter)| {
+                    info!(
+                        "starting {} ({} {}), log level: {level_filter}",
+                        self.name,
+                        env!("CARGO_PKG_NAME"),
+                        env!("CARGO_PKG_VERSION")
+                    );
+                })
+                .map_err(|e| format!("{e}"))
+            });
 
-        if let Err(e) = init_result {
-            return Err(ShellError::Internal(e.clone()));
+            if let Err(e) = init_result {
+                eprintln!("warning: logging init failed: {e}");
+            }
         }
 
         if let Some(vfs_lookup) = &self.vfs_lookup {
@@ -392,6 +397,7 @@ pub struct ShellConfig {
     cli_group: CommandGroup,
     shell_group: CommandGroup,
     vfs_lookup: Option<VfsLookup>,
+    init_tracing: bool,
 }
 
 /// Create a [`ShellConfig`] with Cargo metadata filled in automatically.
@@ -426,6 +432,7 @@ impl ShellConfig {
             cli_group: CommandGroup::default(),
             shell_group: CommandGroup::default(),
             vfs_lookup: None,
+            init_tracing: true,
         }
     }
 
@@ -477,6 +484,16 @@ impl ShellConfig {
         self
     }
 
+    /// Suppress automatic tracing/logging initialisation.
+    ///
+    /// By default the shell sets up a global `tracing` subscriber on first
+    /// run. Call this when the process already has a subscriber (e.g. when
+    /// creating additional shells in the same process).
+    pub fn no_init_tracing(mut self) -> Self {
+        self.init_tracing = false;
+        self
+    }
+
     /// Build the configured shell and return it as an `Arc<dyn Shell>`.
     #[must_use]
     pub fn build(self) -> Arc<dyn Shell + 'static> {
@@ -487,6 +504,7 @@ impl ShellConfig {
             self.shell_group,
             self.cli_group,
             self.vfs_lookup,
+            self.init_tracing,
         )
     }
 }
