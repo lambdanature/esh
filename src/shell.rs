@@ -58,11 +58,13 @@ type AugmentorFn = dyn Fn(Command) -> Command + Send + Sync;
 /// subcommands or arguments.
 pub type Augmentor = Arc<AugmentorFn>;
 
-type HandlerFn = dyn Fn(&dyn Shell, &ArgMatches) -> Result<(), ShellError> + Send + Sync;
+type HandlerResult = Result<ExitCode, ShellError>;
+type HandlerFn = dyn Fn(&dyn Shell, &ArgMatches) -> HandlerResult + Send + Sync;
+pub const HANDLER_SUCCESS: HandlerResult = Ok(ExitCode::SUCCESS);
 
 /// A shared closure that handles a parsed command.
 ///
-/// Return `Ok(())` on success, [`ShellError::CommandNotFound`] to pass
+/// Return `HANDLER_SUCCESS` on success, [`ShellError::CommandNotFound`] to pass
 /// control to the next handler, or another [`ShellError`] to abort.
 pub type Handler = Arc<HandlerFn>;
 
@@ -158,7 +160,7 @@ enum BasicCliCommands {
     Shell,
 }
 
-fn handle_basic_cli_command(_sh: &BasicShell, matches: &ArgMatches) -> Result<(), ShellError> {
+fn handle_basic_cli_command(_sh: &BasicShell, matches: &ArgMatches) -> HandlerResult {
     match BasicCliCommands::from_arg_matches(matches) {
         Ok(BasicCliCommands::Shell) => Err(ShellError::Internal(
             "command 'shell' not implemented".into(),
@@ -183,9 +185,9 @@ enum BasicShellCommands {
     Exit,
 }
 
-fn handle_basic_shell_command(_sh: &BasicShell, matches: &ArgMatches) -> Result<(), ShellError> {
+fn handle_basic_shell_command(_sh: &BasicShell, matches: &ArgMatches) -> HandlerResult {
     match BasicShellCommands::from_arg_matches(matches) {
-        Ok(BasicShellCommands::Exit) => Ok(()),
+        Ok(BasicShellCommands::Exit) => HANDLER_SUCCESS,
         Err(_) => Err(ShellError::CommandNotFound),
     }
 }
@@ -195,11 +197,11 @@ enum BasicSharedCommands {
     Version,
 }
 
-fn handle_basic_shared_command(sh: &BasicShell, matches: &ArgMatches) -> Result<(), ShellError> {
+fn handle_basic_shared_command(sh: &BasicShell, matches: &ArgMatches) -> HandlerResult {
     match BasicSharedCommands::from_arg_matches(matches) {
         Ok(BasicSharedCommands::Version) => {
             println!("{} {}", sh.pkg_name, sh.version);
-            Ok(())
+            HANDLER_SUCCESS
         }
         Err(_) => Err(ShellError::CommandNotFound),
     }
@@ -210,7 +212,7 @@ enum VfsSharedCommands {
     Pwd,
 }
 
-fn handle_vfs_shared_command(sh: &BasicShell, matches: &ArgMatches) -> Result<(), ShellError> {
+fn handle_vfs_shared_command(sh: &BasicShell, matches: &ArgMatches) -> HandlerResult {
     match VfsSharedCommands::from_arg_matches(matches) {
         Ok(VfsSharedCommands::Pwd) => {
             let vfs_guard = sh
@@ -221,7 +223,7 @@ fn handle_vfs_shared_command(sh: &BasicShell, matches: &ArgMatches) -> Result<()
                 || Err(ShellError::Internal("no current cwd".into())),
                 |fs| {
                     println!("{}", fs.cwd().display());
-                    Ok(())
+                    HANDLER_SUCCESS
                 },
             )
         }
@@ -360,7 +362,7 @@ impl Shell for BasicShell {
 
         for handler in &self.cli_group.hnds {
             match (handler)(self, &matches) {
-                Ok(()) => return Ok(ExitCode::SUCCESS),
+                Ok(code) => return Ok(code),
                 Err(ShellError::CommandNotFound) => continue, // Give next handler a chance
                 Err(e) => return Err(e),
             }
