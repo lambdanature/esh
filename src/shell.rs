@@ -237,15 +237,6 @@ impl BasicShell {
         })
     }
 
-    // // execute a line from within the shell
-    // fn execute_line(&self, line: &str) {
-    //     todo!()
-    // }
-
-    // fn execute_args(&self) {
-    //     todo!()
-    // }
-
     fn build_cmd(&self) -> Command {
         let mut cmd = Command::new(self.name.clone())
             .subcommand_required(true)

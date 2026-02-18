@@ -183,7 +183,6 @@ pub fn shell_parse_line(input: &str) -> Result<Vec<OsString>, ShellParseError> {
     }
 
     if in_word {
-        // let s = String::from_utf8(current).map_err(|_| ShellParseError::InvalidUtf8)?;
         words.push(OsString::from_vec(current));
     }
 

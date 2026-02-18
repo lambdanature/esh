@@ -117,14 +117,6 @@ The 48 parser tests cover the main paths well. Consider adding:
 
 ## 5. Code Quality
 
-### 5.1 Commented-out code (LOW)
-
-- `src/shell.rs:226-233` — commented-out `execute_line` and `execute_args`
-- `src/parse.rs:186` — commented-out UTF-8 validation line
-
-**Recommendation:** Remove or move to a tracking issue. Version control
-preserves history.
-
 ### 5.2 `#[allow(unused_imports)]` for tracing (LOW)
 
 **File:** `src/shell.rs:11`, `src/util.rs:6`
@@ -293,7 +285,6 @@ is broader; the second (`/target`) is more specific. Keep only one.
 | **P2** | Add tests for `util.rs` | 4.2 |
 | **P2** | Set up CI/CD | 10.1 |
 | **P2** | Add `#[must_use]` to builder methods | 5.5 |
-| **P3** | Remove commented-out code | 5.1 |
 | **P3** | Clean up unused imports | 5.2 |
 | **P3** | Fix pedantic clippy warnings | 5.5 |
 | **P3** | Add `#![forbid(unsafe_code)]` | 9.2 |
