@@ -871,4 +871,128 @@ mod tests {
         assert!(r1.is_ok());
         assert!(r2.is_ok());
     }
+
+    // -- Concurrent VFS access ---------------------------------------------
+
+    fn build_basic_shell(cfg: ShellConfig) -> Arc<BasicShell> {
+        BasicShell::new(
+            cfg.name,
+            cfg.pkg_name,
+            cfg.version,
+            cfg.shell_group,
+            cfg.cli_group,
+            cfg.vfs_lookup,
+            cfg.init_tracing,
+        )
+    }
+
+    #[test]
+    fn concurrent_version_from_multiple_threads() {
+        let sh = build_basic_shell(config("concurrent").no_init_tracing());
+
+        std::thread::scope(|s| {
+            let mut handles = Vec::new();
+            for _ in 0..8 {
+                handles.push(s.spawn(|| sh.run_args(&[os("concurrent"), os("version")])));
+            }
+            for h in handles {
+                assert!(h.join().expect("thread panicked").is_ok());
+            }
+        });
+    }
+
+    #[test]
+    fn concurrent_vfs_access_from_multiple_threads() {
+        struct TestFs(PathBuf);
+        impl Vfs for TestFs {
+            fn cwd(&self) -> &Path {
+                &self.0
+            }
+        }
+
+        let lookup: VfsLookup = Arc::new(|_| Ok(Box::new(TestFs(PathBuf::from("/concurrent")))));
+        let sh = build_basic_shell(
+            config("concurrent-vfs")
+                .no_init_tracing()
+                .vfs_lookup(lookup),
+        );
+
+        // Initialize VFS via pwd
+        let r = sh.run_args(&[os("concurrent-vfs"), os("pwd")]);
+        assert!(r.is_ok());
+
+        // Run pwd concurrently from multiple threads
+        std::thread::scope(|s| {
+            let mut handles = Vec::new();
+            for _ in 0..8 {
+                handles.push(s.spawn(|| sh.run_args(&[os("concurrent-vfs"), os("pwd")])));
+            }
+            for h in handles {
+                assert!(h.join().expect("thread panicked").is_ok());
+            }
+        });
+    }
+
+    // -- die! macro --------------------------------------------------------
+
+    #[test]
+    fn die_with_message_returns_fatal_error() {
+        fn trigger() -> Result<(), ShellError> {
+            die!("something broke");
+        }
+        match trigger() {
+            Err(ShellError::Fatal(msg)) => assert_eq!(msg, "something broke"),
+            other => panic!("expected Fatal, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn die_with_format_args_returns_fatal_error() {
+        fn trigger() -> Result<(), ShellError> {
+            die!("code {}", 42);
+        }
+        match trigger() {
+            Err(ShellError::Fatal(msg)) => assert_eq!(msg, "code 42"),
+            other => panic!("expected Fatal, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn die_no_args_returns_fatal_exiting() {
+        fn trigger() -> Result<(), ShellError> {
+            die!();
+        }
+        match trigger() {
+            Err(ShellError::Fatal(msg)) => assert_eq!(msg, "Exiting"),
+            other => panic!("expected Fatal, got: {other:?}"),
+        }
+    }
+
+    // -- shell_config! macro -----------------------------------------------
+
+    #[test]
+    fn shell_config_macro_with_name() {
+        let cfg = shell_config!("my-test-shell");
+        let sh = cfg.build();
+        let result = sh.run_args(&[os("my-test-shell"), os("version")]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn shell_config_macro_with_custom_name() {
+        let cfg = shell_config!("another-shell");
+        let sh = cfg.no_init_tracing().build();
+        let result = sh.run_args(&[os("another-shell"), os("version")]);
+        assert!(result.is_ok());
+    }
+
+    // -- no_init_tracing ---------------------------------------------------
+
+    #[test]
+    fn no_init_tracing_skips_subscriber_setup() {
+        let sh = config("no-trace").no_init_tracing().build();
+        // Should succeed without touching the global subscriber
+        let result = sh.run_args(&[os("no-trace"), os("version")]);
+        assert!(result.is_ok());
+    }
 }

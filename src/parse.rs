@@ -842,4 +842,40 @@ mod tests {
         let result = shell_parse_line(input.trim_end()).unwrap();
         assert_eq!(result.len(), 10_000);
     }
+
+    // ---- OsString conversion path (non-UTF-8 on Unix) ----------------------
+
+    #[cfg(unix)]
+    #[test]
+    fn shell_parse_arg_high_byte_produces_valid_os_string() {
+        use std::os::unix::ffi::OsStrExt;
+        let os = shell_parse_arg(r"\xFF").unwrap();
+        assert_eq!(os.as_os_str().as_bytes(), &[0xFF]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn shell_parse_arg_mixed_utf8_and_raw_bytes() {
+        use std::os::unix::ffi::OsStrExt;
+        let os = shell_parse_arg(r"hello\x80world").unwrap();
+        assert_eq!(os.as_os_str().as_bytes(), b"hello\x80world");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn shell_parse_line_high_byte_word() {
+        use std::os::unix::ffi::OsStrExt;
+        let words = shell_parse_line(r"\xFF \xFE").unwrap();
+        assert_eq!(words.len(), 2);
+        assert_eq!(words[0].as_os_str().as_bytes(), &[0xFF]);
+        assert_eq!(words[1].as_os_str().as_bytes(), &[0xFE]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn shell_parse_arg_nul_byte() {
+        use std::os::unix::ffi::OsStrExt;
+        let os = shell_parse_arg(r"\x00").unwrap();
+        assert_eq!(os.as_os_str().as_bytes(), &[0x00]);
+    }
 }

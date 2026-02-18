@@ -138,34 +138,6 @@ Since `Vfs` is stored inside `Mutex<Option<Box<dyn Vfs>>>`, `Send` is sufficient
 (the `Mutex` provides `Sync`). This is correct, but worth documenting why `Sync`
 is not required, so future contributors don't "fix" it.
 
-### 4.6 [LOW] `handle_basic_cli_command` for `Shell` subcommand returns error
-
-**File:** `src/shell.rs:151–158`
-
-The `Shell` subcommand is registered but immediately returns
-`ShellError::Internal("command 'shell' not implemented")`. This is a placeholder
-for the future REPL. It's fine as-is, but the error message should probably be
-user-facing ("shell mode is not yet implemented") rather than sounding like an
-internal bug.
-
----
-
-## 5. Testing
-
-### 5.2 [MEDIUM] Missing test coverage
-
-- **`shell_parse_arg` with non-UTF-8 bytes on Unix** — `\xFF` produces a raw
-  byte that is valid in Unix `OsString` but not UTF-8. The `_bytes` variant is
-  tested, but the `OsString` conversion path (`from_io_vec`) is only implicitly
-  tested.
-- **Concurrent handler execution** — no tests exercise the `Mutex<Option<Box<dyn
-  Vfs>>>` under contention. Since the current architecture is single-threaded
-  this is low priority, but the `Arc<dyn Shell>` API implies shared ownership.
-- **`die!` macro** — not tested (understandably, since it calls
-  `process::exit`). Consider testing with a subprocess.
-- **`shell_config!` macro** — not directly tested (only tested through the
-  `config()` helper which calls `ShellConfig::new`).
-
 ### 5.3 [LOW] Static `AtomicUsize` counters in tests may leak across test runs
 
 **File:** `src/shell.rs` (multiple tests)
