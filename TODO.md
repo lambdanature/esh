@@ -16,6 +16,7 @@
       arbitrary binary data fields to ascii protobuf or JSON
 - [ ] Windows mode for vfs access - backslash as path separator
 - [ ] Windows port
+- [ ] Revisit BASENAME cache and remove (only takes first fallback)
 
 ## General Rust Library Hardening Checklist
 
@@ -144,20 +145,6 @@ This is negligible for CLI use but would appear in hot-loop profiling of REPL
 mode. Not worth optimizing now.
 
 ---
-
-## 4. Correctness & Design
-
-### 4.3 [MEDIUM] Global `BASENAME` cache in `get_cmd_basename`
-
-**File:** `src/util.rs:20–35`
-
-Same pattern as 4.2 — the `OnceLock` means the first call's result is cached
-forever, even if subsequent callers pass different fallback values. The tests
-verify this (`get_cmd_basename_is_cached`), but it could surprise library
-consumers.
-
-**Recommendation:** Document clearly that only the first call's fallback is used,
-or remove the cache and let callers cache if needed.
 
 ### 4.5 [LOW] `Vfs` trait only requires `Send`, not `Sync`
 
