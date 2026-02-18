@@ -242,39 +242,6 @@ crate boundaries (for library consumers calling `shell_parse_line`), explicit
 
 ## 4. Correctness & Design
 
-### 4.1 [HIGH] `Shell::run()` escape-processes OS arguments — semantically incorrect
-
-**File:** `src/shell.rs:292–301`
-
-```rust
-fn run(&self) -> Result<(), ShellError> {
-    let mut args: Vec<OsString> = Vec::new();
-    for arg in std::env::args() {
-        let parsed = crate::parse::shell_parse_arg(&arg).unwrap_or_else(|e| {
-            warn!("failed to parse argument {:?}: {e}, using raw value", arg);
-            OsString::from(&arg)
-        });
-        args.push(parsed);
-    }
-    self.run_args(&args)
-}
-```
-
-Process arguments (`std::env::args()`) have already been parsed by the OS shell.
-A literal `\n` in an argument is the two characters `\` and `n`, not a newline.
-By running `shell_parse_arg` on each argument, the code converts `\n` to a
-newline, `\t` to a tab, etc. This is almost certainly unintended and will cause
-surprising behaviour:
-
-```bash
-esh -p '/path/with\nweird/name' pwd
-# The path will contain an actual newline character
-```
-
-**Recommendation:** Remove the `shell_parse_arg` processing in `run()` and pass
-`std::env::args_os()` directly to `run_args()`. Reserve `shell_parse_arg` for
-REPL input where the user types escape sequences interactively.
-
 ### 4.2 [MEDIUM] Global `INIT_LOGGING` makes multi-shell use silently incorrect
 
 **File:** `src/shell.rs:289, 313–328`
