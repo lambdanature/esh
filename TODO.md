@@ -176,12 +176,6 @@ The `vfs` mutex lock calls in `shell.rs` (lines 209, 337–339) correctly conver
 `PoisonError` into `ShellError::Internal`. This is the right approach — no issues
 here.
 
-### 1.5 [LOW] `#![forbid(unsafe_code)]` only on the library
-
-The `lib.rs` has `#![forbid(unsafe_code)]` but `main.rs` does not. The binary is
-small (~58 lines) and contains no unsafe code currently, but adding the attribute
-to the binary would provide a compile-time guarantee.
-
 ---
 
 ## 2. Security
