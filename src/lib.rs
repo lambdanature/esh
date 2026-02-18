@@ -22,6 +22,9 @@ mod parse;
 mod shell;
 mod util;
 
-pub use parse::{shell_parse_arg, shell_parse_line, ShellParseError};
+pub use parse::{
+    shell_parse_arg, shell_parse_arg_bytes, shell_parse_line, shell_parse_line_bytes,
+    ShellParseError,
+};
 pub use shell::{Augmentor, Handler, Shell, ShellConfig, ShellError, Vfs, VfsLookup};
 pub use util::{get_cmd_basename, get_cmd_fallback, init_tracing};

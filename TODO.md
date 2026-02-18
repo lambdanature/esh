@@ -105,22 +105,6 @@ with `assert_cmd` or similar.
 
 ## 7. Platform & Portability
 
-### 7.1 Unix-only `OsStringExt` import (HIGH — for cross-platform goals)
-
-**File:** `src/parse.rs:5`
-
-```rust
-use std::os::unix::ffi::OsStringExt;
-```
-
-This prevents compilation on Windows entirely. The TODO comment acknowledges
-this. For a library published to crates.io, this should either:
-- Be gated behind `#[cfg(unix)]` with a Windows-compatible alternative
-- Use a cross-platform abstraction (e.g., `os_str_bytes` crate)
-- Be clearly documented as unix-only in the crate metadata
-
----
-
 ## 8. Dependencies
 
 ## 9. Security & Hardening
@@ -147,7 +131,6 @@ safety, but CI is essential for PRs and cross-platform validation.
 |----------|------|---------|
 
 | **P1** | Add tests for `shell.rs` | 4.1 |
-| **P1** | Gate or abstract `unix::ffi::OsStringExt` | 7.1 |
 | **P2** | Add integration tests | 4.3 |
 | **P2** | Add tests for `util.rs` | 4.2 |
 | **P2** | Set up CI/CD | 10.1 |

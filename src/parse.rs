@@ -1,9 +1,8 @@
 use std::ffi::OsString;
 use std::iter::Peekable;
-
-// TODO: Port this to Windows and 16bit chars
-use std::os::unix::ffi::OsStringExt;
 use std::str::Chars;
+
+use os_str_bytes::OsStringBytes;
 
 /// Errors that can occur when parsing a shell line.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -31,18 +30,49 @@ pub enum ShellParseError {
     InvalidUtf8,
 }
 
-/// Parse a single string using double-quote escape rules.
+/// Parse a single string using double-quote escape rules, returning an
+/// [`OsString`].
 ///
-/// Processes backslash escape sequences in `input` and returns the raw bytes.
-/// This is useful for interpreting escape sequences in individual values, such
-/// as arguments obtained from [`std::env::args`].
+/// This is a thin wrapper around [`shell_parse_arg_bytes`] — see that
+/// function for full documentation on parsing behaviour and supported
+/// escape sequences.
 ///
-/// Unlike [`shell_parse_line`], double quotes are **not** treated as delimiters —
-/// the entire input is consumed and `"` characters are kept literally.
-/// Unknown `\X` sequences are preserved as `\X` (double-quote semantics).
+/// # Errors
 ///
-/// The result is a byte vector because `\xNN` escapes produce raw bytes that
-/// may not be valid UTF-8.
+/// Returns [`ShellParseError`] on malformed input.  On Windows, also
+/// returns [`ShellParseError::InvalidUtf8`] when the resulting bytes
+/// cannot be represented as an `OsString` (e.g. `\xFF`).
+///
+/// # Examples
+///
+/// ```
+/// # use esh::{shell_parse_arg, ShellParseError};
+/// assert_eq!(shell_parse_arg(r"hello\nworld")?, "hello\nworld");
+/// assert_eq!(shell_parse_arg(r"\x41\x42\x43")?, "ABC");
+/// assert_eq!(shell_parse_arg(r"\u{1f980}")?, "🦀");
+/// # Ok::<(), ShellParseError>(())
+/// ```
+/// Convenience wrapper around [`shell_parse_arg_bytes`] that converts the
+/// result to an [`OsString`].
+///
+/// On Windows, returns [`ShellParseError::InvalidUtf8`] if the byte sequence
+/// cannot be represented as an `OsString` (e.g. a bare `\xFF`).
+/// Use [`shell_parse_arg_bytes`] when you need the raw bytes on all platforms.
+pub fn shell_parse_arg(input: &str) -> Result<OsString, ShellParseError> {
+    let bytes = shell_parse_arg_bytes(input)?;
+    OsString::from_io_vec(bytes).ok_or(ShellParseError::InvalidUtf8)
+}
+
+/// Parse a single string using double-quote escape rules, returning raw bytes.
+///
+/// This is the primary byte-level parser. It processes backslash escape
+/// sequences in `input` and returns the raw bytes, which may include
+/// non-UTF-8 values such as `\xFF`.
+///
+/// Unlike [`shell_parse_line_bytes`], double quotes are **not** treated as
+/// delimiters — the entire input is consumed and `"` characters are kept
+/// literally. Unknown `\X` sequences are preserved as `\X` (double-quote
+/// semantics).
 ///
 /// See [`shell_parse_line`] for the full list of supported escape sequences.
 ///
@@ -54,13 +84,13 @@ pub enum ShellParseError {
 /// # Examples
 ///
 /// ```
-/// # use esh::{shell_parse_arg, ShellParseError};
-/// assert_eq!(shell_parse_arg(r"hello\nworld")?, "hello\nworld");
-/// assert_eq!(shell_parse_arg(r"\x41\x42\x43")?, "ABC");
-/// assert_eq!(shell_parse_arg(r"\u{1f980}")?, "🦀");
+/// # use esh::{shell_parse_arg_bytes, ShellParseError};
+/// assert_eq!(shell_parse_arg_bytes(r"hello\nworld")?, b"hello\nworld");
+/// assert_eq!(shell_parse_arg_bytes(r"\x41\x42\x43")?, b"ABC");
+/// assert_eq!(shell_parse_arg_bytes(r"\xFF")?, vec![0xFF]);
 /// # Ok::<(), ShellParseError>(())
 /// ```
-pub fn shell_parse_arg(input: &str) -> Result<OsString, ShellParseError> {
+pub fn shell_parse_arg_bytes(input: &str) -> Result<Vec<u8>, ShellParseError> {
     let mut chars = input.chars().peekable();
     let mut output = Vec::new();
     while let Some(c) = chars.next() {
@@ -69,7 +99,7 @@ pub fn shell_parse_arg(input: &str) -> Result<OsString, ShellParseError> {
             _ => push_char(&mut output, c),
         }
     }
-    Ok(OsString::from_vec(output))
+    Ok(output)
 }
 
 /// Inner double-quote parser that operates on a char iterator.
@@ -90,9 +120,45 @@ fn shell_parse_arg_inner(
     Ok(false)
 }
 
-/// Split a string into words using POSIX shell-like parsing rules.
+/// Split a string into words using POSIX shell-like parsing rules, returning
+/// [`OsString`] values.
 ///
-/// Supports:
+/// This is a thin wrapper around [`shell_parse_line_bytes`] — see that
+/// function for full documentation on parsing behaviour and supported
+/// escape sequences.
+///
+/// # Errors
+///
+/// Returns [`ShellParseError`] on malformed input.  On Windows, also
+/// returns [`ShellParseError::InvalidUtf8`] when a resulting word contains
+/// bytes that cannot be represented as an `OsString` (e.g. `\xFF`).
+///
+/// # Examples
+///
+/// ```
+/// # use esh::{shell_parse_line, ShellParseError};
+/// let args = shell_parse_line(r#"hello "world 'foo'" bar"#)?;
+/// assert_eq!(args, vec!["hello", "world 'foo'", "bar"]);
+///
+/// let args = shell_parse_line(r"one\ two three")?;
+/// assert_eq!(args, vec!["one two", "three"]);
+/// # Ok::<(), ShellParseError>(())
+/// ```
+pub fn shell_parse_line(input: &str) -> Result<Vec<OsString>, ShellParseError> {
+    shell_parse_line_bytes(input)?
+        .into_iter()
+        .map(|w| OsString::from_io_vec(w).ok_or(ShellParseError::InvalidUtf8))
+        .collect()
+}
+
+/// Split a string into words using POSIX shell-like parsing rules, returning
+/// raw byte vectors.
+///
+/// This is the primary byte-level word splitter. Each word is returned as a
+/// `Vec<u8>` that may contain non-UTF-8 bytes (e.g. from `\xFF` escapes).
+///
+/// ## Parsing rules
+///
 /// - **Unquoted words** split on whitespace
 /// - **Single quotes** (`'...'`): everything inside is literal, no escape processing
 /// - **Double quotes** (`"..."`): allows escape sequences; unknown `\X` is kept as `\X`
@@ -108,34 +174,27 @@ fn shell_parse_arg_inner(
 ///
 /// # Errors
 ///
-/// Returns [`ShellParseError`] on unmatched quotes, trailing backslash,
-/// malformed escape sequences, or if a resulting word is not valid UTF-8
-/// (e.g. a bare `\xFF`).
+/// Returns [`ShellParseError`] on unmatched quotes, trailing backslash, or
+/// malformed escape sequences.
 ///
 /// # Examples
 ///
 /// ```
-/// # use esh::{shell_parse_line, ShellParseError};
-/// let args = shell_parse_line(r#"hello "world 'foo'" bar"#)?;
-/// assert_eq!(args, vec!["hello", "world 'foo'", "bar"]);
+/// # use esh::{shell_parse_line_bytes, ShellParseError};
+/// let words = shell_parse_line_bytes(r"\x41\x42\x43")?;
+/// assert_eq!(words, vec![b"ABC".to_vec()]);
 ///
-/// let args = shell_parse_line(r"one\ two three")?;
-/// assert_eq!(args, vec!["one two", "three"]);
-///
-/// let args = shell_parse_line(r"\x41\x42\x43")?;
-/// assert_eq!(args, vec!["ABC"]);
-///
-/// let args = shell_parse_line(r"\u{1f980}")?;
-/// assert_eq!(args, vec!["🦀"]);
+/// let words = shell_parse_line_bytes(r"\xFF")?;
+/// assert_eq!(words, vec![vec![0xFF]]);
 /// # Ok::<(), ShellParseError>(())
 /// ```
-pub fn shell_parse_line(input: &str) -> Result<Vec<OsString>, ShellParseError> {
+pub fn shell_parse_line_bytes(input: &str) -> Result<Vec<Vec<u8>>, ShellParseError> {
     enum State {
         Normal,
         SingleQuoted,
     }
 
-    let mut words: Vec<OsString> = Vec::new();
+    let mut words: Vec<Vec<u8>> = Vec::new();
     let mut current: Vec<u8> = Vec::new();
     let mut in_word = false;
     let mut chars = input.chars().peekable();
@@ -146,7 +205,7 @@ pub fn shell_parse_line(input: &str) -> Result<Vec<OsString>, ShellParseError> {
             State::Normal => match c {
                 ' ' | '\t' | '\n' | '\r' => {
                     if in_word {
-                        words.push(OsString::from_vec(std::mem::take(&mut current)));
+                        words.push(std::mem::take(&mut current));
                         in_word = false;
                     }
                 }
@@ -165,7 +224,6 @@ pub fn shell_parse_line(input: &str) -> Result<Vec<OsString>, ShellParseError> {
                     parse_backslash_escape(&mut chars, &mut current, false)?;
                 }
                 '#' if !in_word => {
-                    // Comment — consume the rest of the input
                     break;
                 }
                 _ => {
@@ -189,7 +247,7 @@ pub fn shell_parse_line(input: &str) -> Result<Vec<OsString>, ShellParseError> {
     }
 
     if in_word {
-        words.push(OsString::from_vec(current));
+        words.push(current);
     }
 
     Ok(words)
@@ -496,11 +554,7 @@ mod tests {
 
     #[test]
     fn octal_max() {
-        // \0377 = 255, the maximum octal byte
-        assert_eq!(
-            shell_parse_line(r"\0377").unwrap(),
-            vec![OsString::from_vec(vec![0xFF])],
-        );
+        assert_eq!(shell_parse_line_bytes(r"\0377").unwrap(), vec![vec![0xFF]],);
     }
 
     #[test]
@@ -537,29 +591,21 @@ mod tests {
 
     #[test]
     fn hex_escape_high_byte_in_split() {
-        // \xFF is not valid UTF-8, but OsString can hold arbitrary bytes
-        assert_eq!(
-            shell_parse_line(r"\xFF").unwrap(),
-            vec![OsString::from_vec(vec![0xFF])],
-        );
+        assert_eq!(shell_parse_line_bytes(r"\xFF").unwrap(), vec![vec![0xFF]],);
     }
 
     // ---- hex escape via shell_parse_arg --------------------------------
 
     #[test]
     fn dq_hex_raw_byte() {
-        // shell_parse_arg returns raw bytes — \xFF is byte 0xFF
-        assert_eq!(
-            shell_parse_arg(r"\xFF").unwrap(),
-            OsString::from_vec(vec![0xFF])
-        );
+        assert_eq!(shell_parse_arg_bytes(r"\xFF").unwrap(), vec![0xFF],);
     }
 
     #[test]
     fn dq_hex_high_bytes() {
         assert_eq!(
-            shell_parse_arg(r"\x80\xFE\xFF").unwrap(),
-            OsString::from_vec(vec![0x80, 0xFE, 0xFF]),
+            shell_parse_arg_bytes(r"\x80\xFE\xFF").unwrap(),
+            vec![0x80, 0xFE, 0xFF],
         );
     }
 
@@ -742,20 +788,12 @@ mod tests {
 
     #[test]
     fn max_length_octal() {
-        // \0377 is the maximum 3-digit octal that fits in a u8 (255)
-        assert_eq!(
-            shell_parse_arg(r"\0377").unwrap(),
-            OsString::from_vec(vec![0xFF]),
-        );
+        assert_eq!(shell_parse_arg_bytes(r"\0377").unwrap(), vec![0xFF],);
     }
 
     #[test]
     fn max_length_hex() {
-        // \xFF is the maximum 2-digit hex value
-        assert_eq!(
-            shell_parse_arg(r"\xFF").unwrap(),
-            OsString::from_vec(vec![0xFF]),
-        );
+        assert_eq!(shell_parse_arg_bytes(r"\xFF").unwrap(), vec![0xFF],);
     }
 
     #[test]
