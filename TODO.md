@@ -70,44 +70,6 @@
 +------------------------------+
 
 
-## 3. Architecture & Design
-
-### 3.1 `RwLock`/`Mutex` are unnecessary for the current design (HIGH)
-
-**File:** `src/shell.rs:50-55`
-
-```rust
-struct BasicShell {
-    ...
-    cli_group: RwLock<CommandGroup>,
-    shell_group: RwLock<CommandGroup>,
-    vfs: Mutex<Option<Box<dyn Vfs>>>,
-}
-```
-
-`cli_group` and `shell_group` are only mutated in `BasicShell::new()` before the
-`Arc<BasicShell>` is shared. After construction, they are read-only. The current
-pattern of creating an `Arc`, then immediately `.write().unwrap()`-ing the
-internal `RwLock`s is a code smell — it works only because `new()` holds the sole
-`Arc` reference at that point.
-
-**Recommendation:** Build the `CommandGroup`s fully *before* wrapping in
-`Arc<BasicShell>`. Store them as plain fields (no `RwLock`). This removes lock
-overhead, eliminates poison risk, and makes the immutability contract explicit.
-For `vfs`, consider using `OnceLock` or initializing it before sharing the `Arc`.
-
-### 3.2 The `add_sh!` DSL macro is clever but opaque (MEDIUM)
-
-**File:** `src/shell.rs:82-110`
-
-The macro works but is hard to understand for newcomers and difficult to debug.
-The comment "Did anybody ask for a DSL here? No" is refreshingly honest, but the
-macro makes the construction logic invisible to IDEs and documentation tools.
-
-**Recommendation:** Consider replacing with a `CommandGroupBuilder` that provides
-`.add_commands::<T>()`, `.add_args::<T>()`, and `.add_handler(fn)` methods. This
-would be equally ergonomic but IDE-friendly and testable.
-
 ### 3.3 `Shell` trait's `run_args` uses concrete `std::slice::Iter` (LOW)
 
 **File:** `src/shell.rs:22`
