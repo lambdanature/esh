@@ -5,8 +5,12 @@
 - Read the `.git-pre-commit-template`, then run `make init-git` to activate
 
 ## Release Checklist
-- [ ] `cargo fix`
+- [ ] `cargo upgrade --verbose` and manually upgrade any semver incompatible dependencies
+- [ ] `cargo fix --allow-staged`
 - [ ] `cargo clippy`, if sensible then `cargo clippy --fix --lib -p esh`
+- [ ] `make coverage`, and bring test coverage up to level
+- [ ] `make test`
+- [ ] `make precommit`
 - [ ] Change version in Cargo.toml to release version (remove `-dev`)
 - [ ] Tag and release on github.com
 - [ ] `cargo publish --dry-run`, then `cargo publish`

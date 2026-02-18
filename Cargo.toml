@@ -1,6 +1,6 @@
 [package]
 name = "esh"
-version = "0.1.1-dev"
+version = "0.1.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "Embeddable SHell - a Rust library for building interactive, command-driven CLI applications."
@@ -27,7 +27,7 @@ tracing = "0.1.44"
 tracing-log = { version = "0.2.0", optional = true }
 tracing-panic = "0.1.2"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
-vfs-kit = "0.1.13"
+vfs-kit = "0.2.0"
 
 [dev-dependencies]
 assert_cmd = "2.1.2"

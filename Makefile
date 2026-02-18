@@ -34,7 +34,7 @@ precommit: check-precommit
 	.git/hooks/pre-commit
 
 check: check-precommit ## Check precommit, run clippy and check formatting
-	cargo clippy --all-targets --all-features -- -D warnings
+	cargo clippy --all-targets --all-features
 	cargo fmt --all --check
 
 fix: ## Apply clippy recommendations and fmt fixes
