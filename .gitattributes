@@ -1,0 +1,5 @@
+# Ensure all shell scripts and rust files stay LF
+*.rs text eol=lf
+*.sh text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
