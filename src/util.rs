@@ -41,26 +41,27 @@ pub fn get_cmd_fallback() -> &'static String {
     get_cmd_basename(env!("CARGO_PKG_NAME"))
 }
 
-/// Log a fatal error via [`tracing::error!`] and exit the process with code 1.
+/// Log a fatal error via [`tracing::error!`] and exit shell via error handling
 ///
 /// Accepts the same format arguments as [`format!`].
-/// Prefer returning [`ShellError`](crate::ShellError) from library code instead.
+/// This returns [`ShellError`](crate::ShellError) from user supplied handlers.
 #[macro_export]
 macro_rules! die {
     ($fmt:literal, $($arg:tt)*) => {{
-        tracing::error!("Fatal error, exiting: {}", format!($fmt, $($arg)*));
-        std::process::exit(1)   // No semicolon, we want to return ! (Never)
-
+        let msg = format!($fmt, $($arg)*);
+        tracing::error!("Fatal error, exiting: {}", msg);
+        return Err($crate::ShellError::Fatal(msg.into()))
     }};
 
     ($msg:literal) => {{
-        tracing::error!("Fatal error, exiting: {}", $msg);
-        std::process::exit(1)   // No semicolon, we want to return ! (Never)
+        let msg = format!("{}", $msg);
+        tracing::error!("Fatal error, exiting: {}", msg);
+        return Err($crate::ShellError::Fatal(msg))
     }};
 
     () => {{
         tracing::error!("Fatal error, exiting");
-        std::process::exit(1)   // No semicolon, we want to return ! (Never)
+        return Err($crate::ShellError::Fatal("Exiting".into()))
     }};
 }
 

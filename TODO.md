@@ -108,19 +108,6 @@ multi-shell scenarios subtly incorrect.
 
 ## 1. Safety
 
-### 1.3 [MEDIUM] `die!` macro calls `process::exit(1)`
-
-**File:** `src/util.rs:52`
-
-Same concern as 1.2 — `process::exit()` skips destructors. The `die!` macro is
-exported as a public API item, meaning library consumers might use it and
-inadvertently bypass cleanup in their own applications.
-
-**Recommendation:** Document the destructor-skipping behaviour prominently in the
-macro's doc comment. Consider offering a `die!` variant that returns a `!`-typed
-error instead, or at minimum document that library code should prefer returning
-`ShellError`.
-
 ### 2.3 [MEDIUM] Environment variable injection via shell name
 
 **File:** `src/util.rs:129`

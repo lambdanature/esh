@@ -11,12 +11,18 @@ use std::sync::{Arc, Mutex, OnceLock, Weak};
 
 use tracing::{info, warn};
 
+use crate::die;
+
 /// Errors returned by shell operations.
 #[derive(Error, Debug)]
 pub enum ShellError {
     /// An internal error that needs higher-level handling
     #[error("Internal error: {0}")]
     Internal(String),
+
+    /// Fatal error signalled by user supplied handler function
+    #[error("Fatal error: {0}")]
+    Fatal(String),
 
     /// The handler did not recognize the subcommand (try the next handler)
     #[error("Command not found")]
@@ -162,9 +168,12 @@ enum BasicCliCommands {
 
 fn handle_basic_cli_command(_sh: &BasicShell, matches: &ArgMatches) -> HandlerResult {
     match BasicCliCommands::from_arg_matches(matches) {
-        Ok(BasicCliCommands::Shell) => Err(ShellError::Internal(
-            "command 'shell' not implemented".into(),
-        )),
+        Ok(BasicCliCommands::Shell) => {
+            die!("command 'shell' not implemented");
+            // Err(ShellError::Internal(
+            // "command 'shell' not implemented".into(),
+            // )),
+        }
         Err(_) => Err(ShellError::CommandNotFound),
     }
 }
