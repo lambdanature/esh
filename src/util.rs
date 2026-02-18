@@ -28,7 +28,7 @@ pub fn get_cmd_basename(fallback: impl Into<String>) -> &'static String {
         {
             return filename.to_string_lossy().into_owned();
         }
-        // I officialy give up
+        // I officially give up
         fallback.into()
     })
 }

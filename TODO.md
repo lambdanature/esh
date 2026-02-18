@@ -129,16 +129,6 @@ use tracing::{debug, error, info, trace, warn};
 This suppresses warnings for unused log levels. Import only the levels actually
 used in each file.
 
-### 5.3 Typo in `util.rs` (TRIVIAL)
-
-**File:** `src/util.rs:29`
-
-```rust
-// I officialy give up
-```
-
-Should be "officially".
-
 ### 5.4 Pedantic clippy warnings (LOW)
 
 Running `cargo clippy -- -W clippy::pedantic -W clippy::nursery` produces 21
