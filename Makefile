@@ -41,6 +41,9 @@ fix: ## Apply clippy recommendations and fmt fixes
 audit: ## Check for security vulnerabilities
 	cargo audit
 
+coverage:
+	cargo tarpaulin --fail-under 75
+
 outdated: ## Check for out-of-date dependencies
 	cargo outdated
 
@@ -55,6 +58,7 @@ tools: ## Update the rust environment
 	cargo install --locked cargo-outdated
 	cargo install --locked cargo-audit
 	cargo install --locked cargo-nextest
+	cargo install --locked cargo-tarpaulin
 
 init-git: ## Install precommit hooks
 	install -m 755 .git-pre-commit-template .git/hooks/pre-commit
