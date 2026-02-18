@@ -108,29 +108,6 @@ multi-shell scenarios subtly incorrect.
 
 ## 1. Safety
 
-### 1.1 [HIGH] Hidden `expect()` in `add_sh!` macro — panic in production code
-
-**File:** `src/shell.rs:140`
-
-```rust
-let hnd: Handler = Arc::new(move |_, m| {
-    $what(&w.upgrade().expect("shell dropped while handler active"), m)
-});
-```
-
-`Weak::upgrade()` returns `Option<Arc<T>>`, and `.expect()` is a panic path.
-Although the invariant ("the Arc outlives all handler calls") is upheld by the
-current architecture, this panic bypasses the crate-level
-`deny(clippy::expect_used)` lint — clippy does not flag it (confirmed by running
-`cargo clippy --lib`). If the invariant is ever violated (e.g. a future
-refactoring stores handlers beyond the `Arc`'s lifetime), this will panic in
-production with no recovery path.
-
-**Recommendation:** Replace with `.ok_or(ShellError::Internal(...))?` and change
-the handler signature to return `Result`. Alternatively, add an explicit
-`#[allow(clippy::expect_used)]` with a `// SAFETY:` comment documenting why the
-invariant holds, so reviewers can audit it.
-
 ### 1.2 [MEDIUM] `clap::Error::exit()` bypasses destructors
 
 **File:** `src/shell.rs:311`

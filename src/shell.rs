@@ -137,7 +137,10 @@ macro_rules! add_sh {
     (@add $weak:ident, HNDS $what:path [ $( $group:ident )* ] ) => {{
         let w = Weak::clone(&$weak);
         let hnd: Handler = Arc::new(move |_, m| {
-            $what(&w.upgrade().expect("shell dropped while handler active"), m)
+            let sh = w.upgrade().ok_or(ShellError::Internal(
+                "shell dropped while handler active".into(),
+            ))?;
+            $what(&sh, m)
         });
         $( $group.hnds.push(hnd.clone()); )*
     }};
