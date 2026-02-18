@@ -254,6 +254,7 @@ pub fn shell_parse_line_bytes(input: &str) -> Result<Vec<Vec<u8>>, ShellParseErr
 }
 
 /// Append the UTF-8 encoding of `c` to a byte buffer.
+#[inline]
 fn push_char(output: &mut Vec<u8>, c: char) {
     let mut buf = [0u8; 4];
     let encoded = c.encode_utf8(&mut buf);
@@ -262,6 +263,7 @@ fn push_char(output: &mut Vec<u8>, c: char) {
 
 /// Convert an ASCII hex digit to its numeric value (0–15), or `None` if
 /// the character is not a hex digit.
+#[inline]
 const fn hex_digit(c: char) -> Option<u8> {
     match c {
         '0'..='9' => Some((c as u8) - b'0'),
@@ -277,6 +279,7 @@ const fn hex_digit(c: char) -> Option<u8> {
 /// When `in_double_quotes` is true, an unrecognised `\X` is preserved as the
 /// two characters `\X` (POSIX double-quote semantics).  When false (unquoted),
 /// an unrecognised `\X` produces just `X` (POSIX unquoted semantics).
+#[inline]
 fn parse_backslash_escape(
     chars: &mut Peekable<Chars>,
     output: &mut Vec<u8>,

@@ -6,6 +6,8 @@
 
 - [ ] Interactive REPL
   - [ ] Input line length limits to protect from OOM
+  - [ ] Preallocate: Vec::with_capacity(input.len())
+  - [ ] Ensure that we don't build_cmd() on every line
 - [ ] real alias support (think ll='ls -l' etc.)
 - [ ] Parsing / Escape cleanliness
 - [ ] Additional VFS features and corresponding commands
@@ -191,32 +193,6 @@ problematic name.
 
 ## 3. Performance
 
-### 3.1 [MEDIUM] `build_cmd()` reconstructs the clap `Command` on every invocation
-
-**File:** `src/shell.rs:272–286`
-
-Every call to `run_args()` rebuilds the `clap::Command` by iterating all
-augmentors. For single-shot CLI use this is fine. For the planned REPL mode (where
-`run_args` would be called per-line), this becomes a per-command overhead:
-allocating strings, registering subcommands, and building the help text each
-time.
-
-**Recommendation:** Cache the built `Command` (or at least its skeleton) inside
-`BasicShell`. Invalidate only if augmentors change (which they currently cannot
-after `build()`).
-
-### 3.2 [LOW] Parser `Vec` growth with no capacity hint
-
-**File:** `src/parse.rs:94–95, 197–200`
-
-```rust
-let mut output = Vec::new();
-```
-
-For typical inputs the default growth strategy is fine. For very long inputs
-(future REPL), a `Vec::with_capacity(input.len())` hint would avoid
-reallocations. This is a micro-optimisation — profile before applying.
-
 ### 3.3 [LOW] `push_char` UTF-8 encoding per character
 
 **File:** `src/parse.rs:257–261`
@@ -230,13 +206,6 @@ ASCII case, a direct `output.push(c as u8)` fast path would avoid the
 Each handler invocation does a `Weak::upgrade()` (atomic increment + decrement).
 This is negligible for CLI use but would appear in hot-loop profiling of REPL
 mode. Not worth optimizing now.
-
-### 3.5 [INFO] No `#[inline]` hints on small, hot parser helpers
-
-`push_char`, `hex_digit`, and `parse_backslash_escape` are small functions called
-from tight loops. The compiler likely inlines them within the crate, but across
-crate boundaries (for library consumers calling `shell_parse_line`), explicit
-`#[inline]` could help. Low priority.
 
 ---
 
