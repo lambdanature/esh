@@ -71,17 +71,6 @@
 
 ## 4. Testing
 
-### 4.3 No integration tests (MEDIUM)
-
-The `tests/` directory does not exist. The binary should be tested end-to-end
-with `assert_cmd` or similar.
-
-**Recommendation:** Add integration tests that invoke the binary and verify:
-- `esh version` outputs the version
-- `esh -p . pwd` outputs the CWD
-- `esh -p /nonexistent pwd` produces an error
-- Unknown commands print help
-
 ### 9.1 No input length limits (LOW)
 
 The parser will happily process arbitrarily long input strings. For an
@@ -104,5 +93,4 @@ safety, but CI is essential for PRs and cross-platform validation.
 |----------|------|---------|
 
 | **P1** | Add tests for `shell.rs` | 4.1 |
-| **P2** | Add integration tests | 4.3 |
 | **P2** | Set up CI/CD | 10.1 |
