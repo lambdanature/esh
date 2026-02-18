@@ -143,11 +143,6 @@ The parser will happily process arbitrarily long input strings. For an
 embeddable shell that might accept user input over a network or IPC, consider
 adding configurable maximum input length.
 
-### 9.2 No `#[forbid(unsafe_code)]` (LOW)
-
-The crate contains no `unsafe` code. Adding `#![forbid(unsafe_code)]` to
-`lib.rs` would prevent accidental introduction and signal safety to users.
-
 ### 9.3 `edition = "2024"` is very new (LOW)
 
 Rust edition 2024 was stabilized recently. While this is fine for the project,

@@ -11,11 +11,12 @@
 //! | `tracing-log` | off | Bridges the [`log`](https://docs.rs/log) crate to [`tracing`] so libraries that use `log::*` macros are captured by the tracing subscriber. |
 
 #![warn(missing_docs)]
-// Be very strict about panic-safety
+// Be very strict about safety
 #![cfg_attr(
     not(test),
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
+#![forbid(unsafe_code)]
 
 mod parse;
 mod shell;
