@@ -203,7 +203,10 @@ enum VfsSharedCommands {
 fn handle_vfs_shared_command(sh: &BasicShell, matches: &ArgMatches) -> Result<(), ShellError> {
     match VfsSharedCommands::from_arg_matches(matches) {
         Ok(VfsSharedCommands::Pwd) => {
-            let vfs_guard = sh.vfs.lock().expect("vfs mutex poisoned");
+            let vfs_guard = sh
+                .vfs
+                .lock()
+                .map_err(|e| ShellError::Internal(format!("vfs mutex poisoned: {e}")))?;
             (*vfs_guard).as_ref().map_or_else(
                 || Err(ShellError::Internal("no current cwd".into())),
                 |fs| {
@@ -330,7 +333,10 @@ impl Shell for BasicShell {
 
         if let Some(vfs_lookup) = &self.vfs_lookup {
             let vfs = (vfs_lookup)(&matches)?;
-            *self.vfs.lock().expect("vfs mutex poisoned") = Some(vfs);
+            *self
+                .vfs
+                .lock()
+                .map_err(|e| ShellError::Internal(format!("vfs mutex poisoned: {e}")))? = Some(vfs);
         }
 
         for handler in &self.cli_group.hnds {

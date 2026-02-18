@@ -5,6 +5,7 @@
 ## Missing Features
 
 - [ ] Interactive REPL
+- [ ] real alias support (think ll='ls -l' etc.)
 - [ ] Parsing / Escape cleanliness
 - [ ] Additional VFS features and corresponding commands
 - [ ] Test with real-life applications (beyond esh)
@@ -26,12 +27,11 @@
 - [ ] Use **madsim** for testing distributed systems based on async/tokio
 
 ### Hardening & Security
-- [ ] Replace all `.unwrap()` and `.expect()` with proper **Result/Option** handling
-- [ ] Use Clippy to block future regressions, along the lines of
+- [X] Replace all `.unwrap()` and `.expect()` with proper **Result/Option** handling
+- [X] Use Clippy to block future regressions, along the lines of
   - `#![cfg_attr(not(test), deny(clippy::unwrap_used))]`
   - `#![cfg_attr(not(test), deny(clippy::expect_used))]`
   - `#![cfg_attr(not(test), deny(clippy::panic))]`
-- [ ] Add `#![deny(clippy::unwrap_used, clippy::expect_used)]` to `lib.rs`
 - [ ] Define and document **MSRV** (Minimum Supported Rust Version)
 - [ ] Set up **cargo-deny** and **cargo-audit** for dependency lifecycle
 - [ ] Add `#[forbid(unsafe_code)]` if applicable to the crate logic
@@ -112,24 +112,6 @@ The 48 parser tests cover the main paths well. Consider adding:
 - Octal overflow case (`\0777`)
 - Multi-line input with continuations
 - Very long input strings (performance / DoS)
-
----
-
-## 5. Code Quality
-
-## 6. API & Documentation
-
-### 6.2 `Shell` trait is too thin to be useful as a trait (MEDIUM)
-
-The `Shell` trait has only `run()` and `run_args()`. Consumers cannot query the
-shell's name, version, registered commands, or VFS from the trait. If the goal
-is to allow alternative `Shell` implementations, the trait needs more surface
-area. If not, it could be a concrete type.
-
-### 6.3 No `# Panics` section on panicking functions (LOW)
-
-`init_tracing` can panic in 3 places but has no `# Panics` doc section.
-Clippy's `missing_panics_doc` lint catches this.
 
 ---
 
