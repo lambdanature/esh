@@ -231,44 +231,11 @@ pattern is fragile.
 
 ---
 
-## 6. CI & Tooling
-
-### 6.1 [MEDIUM] Clippy CI flags `expect_used` in test code
-
-The CI command is:
-
-```yaml
-cargo clippy --all-targets --all-features -- -D warnings -D clippy::unwrap_used -D clippy::expect_used
-```
-
-`--all-targets` includes `tests/cli.rs`, which uses `expect()` and `unwrap()`
-liberally (as is normal for tests). This causes CI to fail. The lib-level
-`cfg_attr(not(test))` only applies to the lib crate, not to files in `tests/`.
-
-**Recommendation:** Either:
-- Add `#[allow(clippy::expect_used, clippy::unwrap_used)]` to test files, or
-- Split the clippy CI step: run strict lints on `--lib` only and standard lints
-  on `--all-targets`.
-
-### 6.2 [LOW] `useless_conversion` clippy warning in `tests/cli.rs:5`
-
-```rust
-Command::from(assert_cmd::cargo::cargo_bin_cmd!("esh"))
-```
-
-The `Command::from()` wrapping is redundant. This triggers `-D warnings` in CI.
-
 ### 6.3 [LOW] No Windows CI
 
 The test matrix covers `ubuntu-latest` and `macos-latest` but not Windows.
 `TODO.md` notes Windows as a future goal. When Windows support is added, add
 `windows-latest` to the CI matrix.
-
-### 6.4 [INFO] Pre-commit hook runs `make check` and `make audit`
-
-The `.git-pre-commit-template` runs both formatting/clippy checks and a full
-`cargo audit` on every commit. The audit step involves network access and can be
-slow. Consider making it optional or moving it to a pre-push hook.
 
 ---
 

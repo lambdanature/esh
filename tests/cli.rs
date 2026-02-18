@@ -3,7 +3,7 @@ use assert_cmd::Command;
 use predicates::prelude::*;
 
 fn esh() -> Command {
-    Command::from(assert_cmd::cargo::cargo_bin_cmd!("esh"))
+    assert_cmd::cargo::cargo_bin_cmd!("esh")
 }
 
 // -- version ---------------------------------------------------------------
