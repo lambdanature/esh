@@ -30,10 +30,10 @@ pub trait Shell {
 }
 
 type AugmentorFn = dyn Fn(Command) -> Command + Send + Sync;
-type Augmentor = Arc<AugmentorFn>;
+pub type Augmentor = Arc<AugmentorFn>;
 
 type HandlerFn = dyn Fn(&dyn Shell, &ArgMatches) -> Result<(), ShellError> + Send + Sync;
-type Handler = Arc<HandlerFn>;
+pub type Handler = Arc<HandlerFn>;
 
 /// Backend-agnostic VFS interface for the shell.
 /// Implement this trait to plug in any filesystem backend.
@@ -42,7 +42,7 @@ pub trait Vfs: Send {
 }
 
 type VfsLookupFn = dyn Fn(&ArgMatches) -> Result<Box<dyn Vfs>, ShellError> + Send + Sync;
-type VfsLookup = Arc<VfsLookupFn>;
+pub type VfsLookup = Arc<VfsLookupFn>;
 
 #[derive(Default, Clone)]
 struct CommandGroup {

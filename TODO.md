@@ -70,12 +70,6 @@
 +------------------------------+
 
 
-### 3.5 `Handler` / `Augmentor` type aliases are not public (LOW)
-
-Users must manually construct `Arc<dyn Fn(&dyn Shell, &ArgMatches) ->
-CommandResult + Send + Sync>`. Exporting these type aliases would improve
-ergonomics.
-
 ### 3.6 Double wrapping in `Arc` (LOW)
 
 **File:** `src/shell.rs:405-416`
@@ -317,7 +311,6 @@ is broader; the second (`/target`) is more specific. Keep only one.
 | **P1** | Add tests for `shell.rs` | 4.1 |
 | **P1** | Add doc comments to public API | 6.1 |
 | **P1** | Gate or abstract `unix::ffi::OsStringExt` | 7.1 |
-| **P2** | Re-export `CommandResult`, `Handler`, `Augmentor` | 3.4, 3.5 |
 | **P2** | Add integration tests | 4.3 |
 | **P2** | Add tests for `util.rs` | 4.2 |
 | **P2** | Set up CI/CD | 10.1 |
