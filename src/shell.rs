@@ -62,9 +62,10 @@ struct BasicShell {
     vfs: Mutex<Option<Box<dyn Vfs>>>,
 }
 
-/// DSL for registering subcommands, arguments, and handlers on mutable
-/// `CommandGroup` locals. No locks are required — all registration happens
-/// before the groups are moved into the `BasicShell` struct.
+/// DSL for registering subcommands, arguments, and handlers
+///
+/// No locks are required — all registration happens before the groups are moved into the
+/// `BasicShell` struct.
 ///
 ///   - `CMDS <Type> [groups..]` — registers `<Type>::augment_subcommands`
 ///   - `ARGS <Type> [groups..]` — registers `<Type>::augment_args`
