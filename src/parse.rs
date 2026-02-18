@@ -256,9 +256,13 @@ pub fn shell_parse_line_bytes(input: &str) -> Result<Vec<Vec<u8>>, ShellParseErr
 /// Append the UTF-8 encoding of `c` to a byte buffer.
 #[inline]
 fn push_char(output: &mut Vec<u8>, c: char) {
-    let mut buf = [0u8; 4];
-    let encoded = c.encode_utf8(&mut buf);
-    output.extend_from_slice(encoded.as_bytes());
+    if c.is_ascii() {
+        output.push(c as u8);
+    } else {
+        let mut buf = [0u8; 4];
+        let encoded = c.encode_utf8(&mut buf);
+        output.extend_from_slice(encoded.as_bytes());
+    }
 }
 
 /// Convert an ASCII hex digit to its numeric value (0–15), or `None` if

@@ -74,49 +74,7 @@
 
 # Code Review — esh (Embeddable Shell)
 
-**Date:** 2026-02-18
-**Scope:** Full repository, focusing on safety, security, and performance
-**Revision:** `27f241e` (HEAD of `main`, 4 commits ahead of origin)
-
----
-
-## Executive Summary
-
-`esh` is a well-structured, early-stage Rust library for building command-driven
-CLI applications. The codebase demonstrates strong Rust discipline: `unsafe` code
-is forbidden, `unwrap`/`expect`/`panic` are denied in non-test code via lint
-gates, error propagation uses `thiserror` and `Result`, and CI enforces `clippy`,
-`fmt`, and `cargo audit`. The POSIX-like shell parser is correct and well-tested.
-
-The main areas for improvement are: (1) a hidden panic path in the `add_sh!`
-macro that bypasses the `expect_used` lint, (2) escape-processing of process
-arguments in `Shell::run()` which is semantically wrong, (3) absence of input
-length limits ahead of the planned REPL, and (4) global static state that makes
-multi-shell scenarios subtly incorrect.
-
----
-
-## Table of Contents
-
-1. [Safety](#1-safety)
-2. [Security](#2-security)
-3. [Performance](#3-performance)
-4. [Correctness & Design](#4-correctness--design)
-5. [Testing](#5-testing)
-6. [CI & Tooling](#6-ci--tooling)
-7. [Prioritised Action Items](#7-prioritised-action-items)
-
----
-
 ## 3. Performance
-
-### 3.3 [LOW] `push_char` UTF-8 encoding per character
-
-**File:** `src/parse.rs:257–261`
-
-Each character is encoded into a 4-byte stack buffer, then copied. For the common
-ASCII case, a direct `output.push(c as u8)` fast path would avoid the
-`encode_utf8` call. Again, profile first.
 
 ### 3.4 [LOW] `Arc`/`Weak` overhead per handler call
 
@@ -158,46 +116,3 @@ pattern is fragile.
 The test matrix covers `ubuntu-latest` and `macos-latest` but not Windows.
 `TODO.md` notes Windows as a future goal. When Windows support is added, add
 `windows-latest` to the CI matrix.
-
----
-
-## 7. Prioritised Action Items
-
-### High Priority
-
-| # | Section | Issue | Effort |
-|---|---------|-------|--------|
-| 1 | 4.1 | `run()` escape-processes OS args — will mangle paths with backslashes | Small |
-| 2 | 1.1 | `expect()` in `add_sh!` macro — hidden panic point that evades lints | Small |
-| 3 | 2.1 | No input length limits — OOM risk in future REPL mode | Small |
-
-### Medium Priority
-
-| # | Section | Issue | Effort |
-|---|---------|-------|--------|
-| 4 | 1.2 | `clap::Error::exit()` bypasses destructors — bad for a library crate | Small |
-| 5 | 4.4 | Edition mismatch `Cargo.toml` (2021) vs `.rustfmt.toml` (2024) | Trivial |
-| 6 | 6.1 | Clippy CI fails on `expect_used` in integration tests | Small |
-| 7 | 1.3 | `die!` macro skips destructors — document or offer alternative | Small |
-| 8 | 3.1 | `build_cmd()` rebuilt per invocation — matters for future REPL | Medium |
-| 9 | 4.2 | Global `INIT_LOGGING` — document or make configurable | Small |
-| 10 | 2.2 | No VFS sandboxing — document trust model | Small |
-| 11 | 2.3 | Shell name used in env var name without sanitization | Small |
-
-### Low Priority
-
-| # | Section | Issue | Effort |
-|---|---------|-------|--------|
-| 12 | 4.3 | Global `BASENAME` cache — document first-call-wins semantics | Trivial |
-| 13 | 1.5 | Add `#![forbid(unsafe_code)]` to the binary | Trivial |
-| 14 | 4.5 | Document why `Vfs: Send` (not `Sync`) is sufficient | Trivial |
-| 15 | 4.6 | Improve "not implemented" error message for `shell` subcommand | Trivial |
-| 16 | 6.2 | Fix `useless_conversion` warning in `tests/cli.rs` | Trivial |
-| 17 | 3.2 | Parser `Vec` capacity hints | Trivial |
-| 18 | 3.3 | ASCII fast path in `push_char` | Trivial |
-| 19 | 5.3 | Static atomic counters in tests are fragile | Small |
-
----
-
-*Review conducted against commit `27f241e`. All findings are based on static
-analysis, clippy output, and manual code reading.*
