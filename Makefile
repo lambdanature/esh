@@ -30,6 +30,9 @@ check-precommit:
 	   exit 1)
 	@echo "pre-commit: ✅ Up to date: .git/hooks/pre-commit (.git-pre-commit-template)"
 
+precommit: check-precommit
+	.git/hooks/pre-commit
+
 check: check-precommit ## Check precommit, run clippy and check formatting
 	cargo clippy --all-targets --all-features -- -D warnings
 	cargo fmt --all --check
