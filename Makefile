@@ -31,7 +31,7 @@ check-precommit:
 	@echo "pre-commit: ✅ Up to date: .git/hooks/pre-commit (.git-pre-commit-template)"
 
 check: check-precommit ## Check precommit, run clippy and check formatting
-	cargo clippy -- -D warnings
+	cargo clippy --all-targets --all-features -- -D warnings
 	cargo fmt --all --check
 
 fix: ## Apply clippy recommendations and fmt fixes

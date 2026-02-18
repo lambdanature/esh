@@ -1,4 +1,5 @@
-#[allow(clippy::expect_used, clippy::unwrap_used)]
+#![allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]
+
 use assert_cmd::Command;
 use predicates::prelude::*;
 

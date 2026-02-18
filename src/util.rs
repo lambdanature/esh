@@ -197,6 +197,7 @@ pub fn init_tracing<T: AsRef<str>>(
 }
 
 #[cfg(test)]
+#[allow(clippy::all)]
 mod tests {
     use super::*;
 
@@ -242,7 +243,7 @@ mod tests {
 
     #[test]
     fn pluralize_with_expression() {
-        let v = vec![1, 2, 3];
+        let v = [1, 2, 3];
         assert_eq!(pluralize!("element", v.len()), "elements");
     }
 

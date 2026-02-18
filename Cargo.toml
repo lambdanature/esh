@@ -15,7 +15,6 @@ path = "src/lib.rs"
 name = "esh"
 path = "src/main.rs"
 
-
 [features]
 tracing-log = ["dep:tracing-log"]
 
@@ -34,3 +33,25 @@ vfs-kit = "0.1.13"
 assert_cmd = "2.1.2"
 predicates = "3.1.4"
 tempfile = "3.25.0"
+
+[lints.clippy]
+all = "deny"
+pedantic = "deny"
+nursery = "deny"
+
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+
+enum_glob_use = "deny"
+todo = "deny"
+mod_module_files = "deny"
+# missing_docs_in_private_items = "deny"
+rest_pat_in_fully_bound_structs = "deny"
+cast_possible_truncation = "deny"
+indexing_slicing = "deny"
+
+# Formatting and style nitpicks
+string_add = "deny"
+string_add_assign = "deny"
+multiple_crate_versions = "deny"

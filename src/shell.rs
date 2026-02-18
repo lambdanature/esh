@@ -330,7 +330,7 @@ impl Shell for BasicShell {
             Ok(m) => m,
             Err(e) => match e.kind() {
                 ErrorKind::DisplayHelp | ErrorKind::DisplayVersion => {
-                    print!("{}", e);
+                    print!("{e}");
                     return Ok(ExitCode::SUCCESS);
                 }
                 _ => {
@@ -374,7 +374,7 @@ impl Shell for BasicShell {
         for handler in &self.cli_group.hnds {
             match (handler)(self, &matches) {
                 Ok(code) => return Ok(code),
-                Err(ShellError::CommandNotFound) => continue, // Give next handler a chance
+                Err(ShellError::CommandNotFound) => {} // Continue and give next handler a chance
                 Err(e) => return Err(e),
             }
         }
@@ -489,6 +489,7 @@ impl ShellConfig {
     /// By default the shell sets up a global `tracing` subscriber on first
     /// run. Call this when the process already has a subscriber (e.g. when
     /// creating additional shells in the same process).
+    #[allow(clippy::missing_const_for_fn)]
     pub fn no_init_tracing(mut self) -> Self {
         self.init_tracing = false;
         self
@@ -510,6 +511,7 @@ impl ShellConfig {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
     use std::path::PathBuf;
