@@ -3,6 +3,12 @@
 //! `esh` provides a configurable command-line shell that can be extended with
 //! custom subcommands, argument augmentors, handlers, and a virtual filesystem.
 //! Start with [`shell_config!`] to build a [`Shell`] instance.
+//!
+//! # Feature flags
+//!
+//! | Flag | Default | Description |
+//! |------|---------|-------------|
+//! | `tracing-log` | off | Bridges the [`log`](https://docs.rs/log) crate to [`tracing`] so libraries that use `log::*` macros are captured by the tracing subscriber. |
 
 #![warn(missing_docs)]
 // Be very strict about panic-safety

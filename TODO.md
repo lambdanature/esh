@@ -135,15 +135,6 @@ this. For a library published to crates.io, this should either:
 
 ## 8. Dependencies
 
-### 8.2 `tracing-log` bridge may be unnecessary (TRIVIAL)
-
-`tracing-log` bridges the `log` crate to `tracing`, but no current dependency
-uses the `log` crate directly. If `vfs-kit` or future deps use `log`, this is
-valuable. Otherwise it adds ~2 extra crates to the dependency tree for no
-immediate benefit.
-
----
-
 ## 9. Security & Hardening
 
 ### 9.1 No input length limits (LOW)

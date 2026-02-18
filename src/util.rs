@@ -91,8 +91,9 @@ macro_rules! pluralize {
 
 /// Initialise the global tracing/logging subscriber.
 ///
-/// Sets up a compact stderr logger, bridges the `log` crate via
-/// [`tracing_log`], and installs a panic hook that logs panics.
+/// Sets up a compact stderr logger and installs a panic hook that logs panics.  When the
+/// `tracing-log` feature is enabled, also bridges the `log` crate to `tracing` so that libraries
+/// using `log::*` macros are captured.
 ///
 /// Returns `(is_verbose, level_filter)` on success.
 ///
@@ -119,6 +120,7 @@ pub fn init_tracing(
     };
 
     // Bridge log crate macros to tracing (for library code that uses log::*)
+    #[cfg(feature = "tracing-log")]
     tracing_log::LogTracer::init()
         .map_err(|e| ShellError::Internal(format!("failed to set log tracer: {e}")))?;
 
