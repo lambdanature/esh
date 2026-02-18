@@ -4,7 +4,7 @@ use clap::{ArgAction, ArgMatches, Args, Command, FromArgMatches, Parser, Subcomm
 use thiserror::Error;
 
 use std::ffi::OsString;
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, Mutex, OnceLock, Weak};
 
 #[allow(unused_imports)]
 use tracing::{debug, error, info, trace, warn};
@@ -262,8 +262,7 @@ impl BasicShell {
     }
 }
 
-use std::sync::Once;
-static INIT_LOGGING: Once = Once::new();
+static INIT_LOGGING: OnceLock<Result<(), String>> = OnceLock::new();
 
 impl Shell for BasicShell {
     fn run(&self) -> Result<(), ShellError> {
@@ -287,19 +286,26 @@ impl Shell for BasicShell {
             .try_get_matches_from(args)
             .unwrap_or_else(|e| e.exit());
 
-        INIT_LOGGING.call_once(|| {
-            let (_, level_filter) = crate::init_tracing(
+        let init_result = INIT_LOGGING.get_or_init(|| {
+            crate::init_tracing(
                 &self.name,
                 matches.get_flag("quiet"),
                 matches.get_count("verbose"),
-            );
-            info!(
-                "starting {} ({} {}), log level: {level_filter}",
-                self.name,
-                env!("CARGO_PKG_NAME"),
-                env!("CARGO_PKG_VERSION")
-            );
+            )
+            .map(|(_, level_filter)| {
+                info!(
+                    "starting {} ({} {}), log level: {level_filter}",
+                    self.name,
+                    env!("CARGO_PKG_NAME"),
+                    env!("CARGO_PKG_VERSION")
+                );
+            })
+            .map_err(|e| format!("{e}"))
         });
+
+        if let Err(e) = init_result {
+            return Err(ShellError::Internal(e.clone()));
+        }
 
         if let Some(vfs_lookup) = &self.vfs_lookup {
             let vfs = (vfs_lookup)(&matches)?;

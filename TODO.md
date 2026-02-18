@@ -70,18 +70,6 @@
 +------------------------------+
 
 
-### 2.5 `init_tracing` uses three `.expect()` calls (LOW)
-
-**File:** `src/util.rs:94, 107, 117`
-
-These panic on failure (e.g., if a tracing subscriber is already set). Since
-`init_tracing` is a public API, callers might have already initialized tracing.
-
-**Recommendation:** Return `Result` from `init_tracing`, or silently handle the
-"already initialized" case.
-
----
-
 ## 3. Architecture & Design
 
 ### 3.1 `RwLock`/`Mutex` are unnecessary for the current design (HIGH)
@@ -384,7 +372,6 @@ is broader; the second (`/target`) is more specific. Keep only one.
 | **P2** | Add tests for `util.rs` | 4.2 |
 | **P2** | Set up CI/CD | 10.1 |
 | **P2** | Add `#[must_use]` to builder methods | 5.5 |
-| **P2** | Return `Result` from `init_tracing` | 2.5 |
 | **P3** | Remove commented-out code | 5.1 |
 | **P3** | Clean up unused imports | 5.2 |
 | **P3** | Fix pedantic clippy warnings | 5.5 |

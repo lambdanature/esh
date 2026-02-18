@@ -6,12 +6,14 @@
 use tracing::{debug, error, info, trace, warn};
 
 use tracing_subscriber::{
-    filter::{EnvFilter, LevelFilter},
+    filter::{Directive, EnvFilter, LevelFilter},
     prelude::*,
     registry::Registry,
 };
 
 use std::sync::OnceLock;
+
+use crate::ShellError;
 
 pub fn get_cmd_basename(fallback: impl Into<String>) -> &'static String {
     static BASENAME: OnceLock<String> = OnceLock::new();
@@ -76,7 +78,11 @@ macro_rules! pluralize {
     };
 }
 
-pub fn init_tracing(name: impl Into<String>, quiet: bool, verbose: u8) -> (bool, LevelFilter) {
+pub fn init_tracing(
+    name: impl Into<String>,
+    quiet: bool,
+    verbose: u8,
+) -> Result<(bool, LevelFilter), ShellError> {
     let is_verbose = !quiet && verbose > 0;
 
     let level_filter = if quiet {
@@ -91,21 +97,22 @@ pub fn init_tracing(name: impl Into<String>, quiet: bool, verbose: u8) -> (bool,
     };
 
     // Bridge log crate macros to tracing (for library code that uses log::*)
-    tracing_log::LogTracer::init().expect("Failed to set log tracer");
+    tracing_log::LogTracer::init()
+        .map_err(|e| ShellError::Internal(format!("failed to set log tracer: {e}")))?;
 
     let registry = Registry::default();
 
     let log_env_name = format!("{}_LOG", name.into().to_uppercase());
 
+    let rustyline_directive: Directive = "rustyline=warn"
+        .parse()
+        .map_err(|e| ShellError::Internal(format!("failed to parse rustyline directive: {e}")))?;
+
     let env_filter = EnvFilter::builder()
         .with_default_directive(level_filter.into())
         .with_env_var(log_env_name)
         .from_env_lossy()
-        .add_directive(
-            "rustyline=warn"
-                .parse()
-                .expect("Failed to parse rustyline directive"),
-        );
+        .add_directive(rustyline_directive);
 
     let subscriber = registry.with(env_filter).with(
         tracing_subscriber::fmt::layer()
@@ -113,8 +120,9 @@ pub fn init_tracing(name: impl Into<String>, quiet: bool, verbose: u8) -> (bool,
             .compact(),
     );
 
-    tracing::subscriber::set_global_default(subscriber)
-        .expect("INTERNAL ERROR: setting default tracing::subscriber failed");
+    tracing::subscriber::set_global_default(subscriber).map_err(|e| {
+        ShellError::Internal(format!("failed to set default tracing subscriber: {e}"))
+    })?;
 
     let prev_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
@@ -122,5 +130,5 @@ pub fn init_tracing(name: impl Into<String>, quiet: bool, verbose: u8) -> (bool,
         prev_hook(info); // daisy-chain to old panic hook
     }));
 
-    (is_verbose, level_filter)
+    Ok((is_verbose, level_filter))
 }
