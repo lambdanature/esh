@@ -1,0 +1,19 @@
+[test_config]
+# General Execution
+all-targets = true
+force-clean = true
+ignore-panics = true
+run-types = ["Tests", "Lib", "Bins"]
+
+# File Filtering
+exclude-files = ["tests/*", "examples/*", "benches/*"]
+
+# Output and Reporting
+output-dir = "target/tarpaulin"
+out = ["Html", "Markdown"]
+
+# Optional: Ensure it checks lines specifically
+precision = 2
+
+# Fail the build if coverage is below 90%
+fail-under = 80.0

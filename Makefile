@@ -42,7 +42,7 @@ audit: ## Check for security vulnerabilities
 	cargo audit
 
 coverage:
-	cargo tarpaulin --fail-under 75
+	cargo tarpaulin
 
 outdated: ## Check for out-of-date dependencies
 	cargo outdated
