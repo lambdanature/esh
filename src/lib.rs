@@ -22,9 +22,14 @@ mod parse;
 mod shell;
 mod util;
 
+pub mod prelude;
+
 pub use parse::{
     shell_parse_arg, shell_parse_arg_bytes, shell_parse_line, shell_parse_line_bytes,
     ShellParseError,
 };
-pub use shell::{Augmentor, Handler, Shell, ShellConfig, ShellError, Vfs, VfsLookup};
+pub use shell::{
+    Augmentor, Handler, HandlerResult, Shell, ShellConfig, ShellError, Vfs, VfsLookup,
+    HANDLER_SUCCESS,
+};
 pub use util::{get_cmd_basename, get_cmd_fallback, init_tracing, make_env_ident};

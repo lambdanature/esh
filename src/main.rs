@@ -5,17 +5,16 @@
 )]
 #![forbid(unsafe_code)]
 
+use esh::prelude::*;
 /// Note that in this example, the `-p` flag is trusted input —
 /// do not expose it to untrusted users for security sandboxing.
 use std::path::{Path, PathBuf};
-use std::process::ExitCode;
-use std::sync::Arc;
+// use std::process::ExitCode;
 
-use clap::{ArgMatches, Args, Parser};
+// use clap::{ArgMatches, Args, Parser};
+// use esh::prelude::*;
+// use tracing::info;
 use vfs_kit::{DirFS, FsBackend};
-
-use esh::{shell_config, ShellError, Vfs};
-use tracing::info;
 
 struct DirFsVfs(DirFS);
 

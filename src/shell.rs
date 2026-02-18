@@ -64,8 +64,10 @@ type AugmentorFn = dyn Fn(Command) -> Command + Send + Sync;
 /// subcommands or arguments.
 pub type Augmentor = Arc<AugmentorFn>;
 
-type HandlerResult = Result<ExitCode, ShellError>;
+/// Result type returned by command handlers.
+pub type HandlerResult = Result<ExitCode, ShellError>;
 type HandlerFn = dyn Fn(&dyn Shell, &ArgMatches) -> HandlerResult + Send + Sync;
+/// Convenience constant for a successful handler return (`Ok(ExitCode::SUCCESS)`).
 pub const HANDLER_SUCCESS: HandlerResult = Ok(ExitCode::SUCCESS);
 
 /// A shared closure that handles a parsed command.

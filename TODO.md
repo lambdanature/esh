@@ -4,6 +4,7 @@
 
 ## Missing Features
 
+- [ ] User supplied default handler for shell args with no command
 - [ ] Interactive REPL
   - [ ] Input line length limits to protect from OOM
   - [ ] Preallocate: Vec::with_capacity(input.len())
@@ -46,10 +47,10 @@
 - [ ] Investigate `no_panic` crate for key functions
 
 ### API & Developer Experience (DX)
-- [ ] Create a `prelude` module for easy "one-line" imports
-- [ ] Refactor errors using the `thiserror` crate for structured debugging
-- [ ] Implement **Feature Flags** for heavy optional dependencies
-- [ ] Add `#[warn(missing_docs)]` to ensure 100% documentation coverage
+- [X] Create a `prelude` module for easy "one-line" imports
+- [X] Refactor errors using the `thiserror` crate for structured debugging
+- [X] Implement **Feature Flags** for heavy optional dependencies
+- [X] Add `#[warn(missing_docs)]` to ensure 100% documentation coverage
 
 ### Advanced Verification & Supply Chain
 - [ ] Set up **cargo-public-api** to track and prevent accidental breaking changes
