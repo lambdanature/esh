@@ -70,37 +70,6 @@
 +------------------------------+
 
 
-### 2.3 `create_vfs` in binary calls `process::exit(1)` (MEDIUM)
-
-**File:** `src/main.rs:48-49`
-
-```rust
-Err(e) => {
-    eprintln!("fatal: can't open VFS at '{}': {}", root_path.display(), e);
-    std::process::exit(1);
-}
-```
-
-Same issue as `die!` — this bypasses normal control flow. Since `create_vfs`
-returns `Option<Box<dyn Vfs>>`, it could return `None` and let the shell
-framework handle the error gracefully (though currently the framework `die!`s on
-`None`, which is also a problem — see 2.4).
-
-### 2.4 VFS lookup failure is fatal (MEDIUM)
-
-**File:** `src/shell.rs:296`
-
-```rust
-} else {
-    die!("Internal error: Can't retrieve vfs");
-}
-```
-
-If `vfs_lookup` returns `None`, the shell terminates via `die!`. This could
-happen if a user simply doesn't provide the `-p` flag (though the default value
-of `"."` mitigates this for the reference binary). The library should not call
-`process::exit` — it should return an error to the caller.
-
 ### 2.5 `init_tracing` uses three `.expect()` calls (LOW)
 
 **File:** `src/util.rs:94, 107, 117`
@@ -407,7 +376,6 @@ is broader; the second (`/target`) is more specific. Keep only one.
 | **P0** | Remove `RwLock`/`Mutex` where unnecessary | 3.1 |
 | **P0** | Fix double `Arc` wrapping | 3.6 |
 | **P1** | Replace `.unwrap()` on locks with proper error handling | 2.1 |
-| **P1** | Stop calling `process::exit` from library code | 2.2, 2.4 |
 | **P1** | Add tests for `shell.rs` | 4.1 |
 | **P1** | Add doc comments to public API | 6.1 |
 | **P1** | Gate or abstract `unix::ffi::OsStringExt` | 7.1 |
