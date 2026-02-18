@@ -581,7 +581,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[test_log::test]
+    #[test]
     fn builtin_shell_returns_not_implemented() {
         let sh = config("test-shell").build();
         let result = sh.run_args(&[os("test-shell"), os("shell")]);
