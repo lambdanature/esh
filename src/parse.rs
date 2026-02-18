@@ -719,4 +719,86 @@ mod tests {
             vec!["echo", "hello 'world'", "foo bar", r#"baz "qux""#],
         );
     }
+
+    #[test]
+    fn deeply_nested_quoting() {
+        // "a'b\"c'd"e — double-quoted region containing singles and escaped double,
+        // then unquoted text appended to the same word
+        assert_eq!(
+            shell_parse_line(r#""a'b\"c'd"e"#).unwrap(),
+            vec!["a'b\"c'de"],
+        );
+    }
+
+    #[test]
+    fn shell_parse_arg_empty_input() {
+        assert_eq!(shell_parse_arg("").unwrap(), OsString::from(""));
+    }
+
+    #[test]
+    fn shell_parse_arg_only_escapes() {
+        assert_eq!(shell_parse_arg(r"\n\t\r").unwrap(), "\n\t\r");
+    }
+
+    #[test]
+    fn max_length_octal() {
+        // \0377 is the maximum 3-digit octal that fits in a u8 (255)
+        assert_eq!(
+            shell_parse_arg(r"\0377").unwrap(),
+            OsString::from_vec(vec![0xFF]),
+        );
+    }
+
+    #[test]
+    fn max_length_hex() {
+        // \xFF is the maximum 2-digit hex value
+        assert_eq!(
+            shell_parse_arg(r"\xFF").unwrap(),
+            OsString::from_vec(vec![0xFF]),
+        );
+    }
+
+    #[test]
+    fn max_length_unicode() {
+        // \u{10FFFF} is the maximum valid Unicode code point
+        assert_eq!(shell_parse_line(r"\u{10FFFF}").unwrap(), vec!["\u{10FFFF}"],);
+    }
+
+    #[test]
+    fn octal_overflow_all_digits() {
+        // \0400 would be 256, which overflows u8. Only \040 (32, space) is
+        // consumed; the trailing '0' is literal.
+        assert_eq!(shell_parse_line(r"\0400").unwrap(), vec![" 0"]);
+    }
+
+    #[test]
+    fn multiline_continuation() {
+        assert_eq!(
+            shell_parse_line("hello\\\nworld").unwrap(),
+            vec!["helloworld"],
+        );
+    }
+
+    #[test]
+    fn multiline_continuation_with_whitespace() {
+        assert_eq!(
+            shell_parse_line("one\\\n  two three").unwrap(),
+            vec!["one", "two", "three"],
+        );
+    }
+
+    #[test]
+    fn long_input_string() {
+        let long_word = "a".repeat(100_000);
+        let result = shell_parse_line(&long_word).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].len(), 100_000);
+    }
+
+    #[test]
+    fn long_input_many_words() {
+        let input = "word ".repeat(10_000);
+        let result = shell_parse_line(input.trim_end()).unwrap();
+        assert_eq!(result.len(), 10_000);
+    }
 }

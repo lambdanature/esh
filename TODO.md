@@ -103,18 +103,6 @@ with `assert_cmd` or similar.
 - `esh -p /nonexistent pwd` produces an error
 - Unknown commands print help
 
-### 4.4 `parse.rs` tests are excellent but miss edge cases (LOW)
-
-The 48 parser tests cover the main paths well. Consider adding:
-- Deeply nested quoting: `"a'b\"c'd"e`
-- Empty input to `shell_parse_arg` with escapes
-- Maximum-length octal/hex/unicode sequences
-- Octal overflow case (`\0777`)
-- Multi-line input with continuations
-- Very long input strings (performance / DoS)
-
----
-
 ## 7. Platform & Portability
 
 ### 7.1 Unix-only `OsStringExt` import (HIGH — for cross-platform goals)
