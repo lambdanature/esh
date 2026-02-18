@@ -170,9 +170,6 @@ fn handle_basic_cli_command(_sh: &BasicShell, matches: &ArgMatches) -> HandlerRe
     match BasicCliCommands::from_arg_matches(matches) {
         Ok(BasicCliCommands::Shell) => {
             die!("command 'shell' not implemented");
-            // Err(ShellError::Internal(
-            // "command 'shell' not implemented".into(),
-            // )),
         }
         Err(_) => Err(ShellError::CommandNotFound),
     }
@@ -548,7 +545,7 @@ mod tests {
     #[test]
     fn config_builder_chaining() {
         let noop_aug: Augmentor = Arc::new(|cmd| cmd);
-        let noop_hnd: Handler = Arc::new(|_, _| Ok(()));
+        let noop_hnd: Handler = Arc::new(|_, _| HANDLER_SUCCESS);
 
         let sh = config("chain")
             .cli_args(noop_aug.clone())
@@ -584,15 +581,15 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[test]
+    #[test_log::test]
     fn builtin_shell_returns_not_implemented() {
         let sh = config("test-shell").build();
         let result = sh.run_args(&[os("test-shell"), os("shell")]);
         match result {
-            Err(ShellError::Internal(msg)) => {
+            Err(ShellError::Fatal(msg)) => {
                 assert!(msg.contains("not implemented"), "unexpected: {msg}");
             }
-            other => panic!("expected Internal error, got: {other:?}"),
+            other => panic!("expected Fatal error, got: {other:?}"),
         }
     }
 
@@ -626,7 +623,7 @@ mod tests {
         let handler: Handler = Arc::new(|_, m| match CustomCmds::from_arg_matches(m) {
             Ok(CustomCmds::Greet) => {
                 CALL_COUNT.fetch_add(1, Ordering::SeqCst);
-                Ok(())
+                HANDLER_SUCCESS
             }
             Err(_) => Err(ShellError::CommandNotFound),
         });
@@ -646,7 +643,7 @@ mod tests {
             Arc::new(|_, m| match BasicSharedCommands::from_arg_matches(m) {
                 Ok(BasicSharedCommands::Version) => {
                     SECOND_CALLED.fetch_add(1, Ordering::SeqCst);
-                    Ok(())
+                    HANDLER_SUCCESS
                 }
                 Err(_) => Err(ShellError::CommandNotFound),
             });
@@ -668,7 +665,7 @@ mod tests {
         let failing_handler: Handler = Arc::new(|_, _| Err(ShellError::Internal("fatal".into())));
         let second_handler: Handler = Arc::new(|_, _| {
             SECOND_CALLED.fetch_add(1, Ordering::SeqCst);
-            Ok(())
+            HANDLER_SUCCESS
         });
 
         let sh = config("chain-err")
@@ -691,11 +688,11 @@ mod tests {
 
         let first_handler: Handler = Arc::new(|_, _| {
             FIRST_CALLED.fetch_add(1, Ordering::SeqCst);
-            Ok(())
+            HANDLER_SUCCESS
         });
         let second_handler: Handler = Arc::new(|_, _| {
             SECOND_CALLED.fetch_add(1, Ordering::SeqCst);
-            Ok(())
+            HANDLER_SUCCESS
         });
 
         let sh = config("first-wins")
@@ -753,7 +750,7 @@ mod tests {
             if m.get_flag("dry_run") {
                 DRY_RUN_SEEN.fetch_add(1, Ordering::SeqCst);
             }
-            Ok(())
+            HANDLER_SUCCESS
         });
 
         let sh = config("augargs")
@@ -803,7 +800,7 @@ mod tests {
         let lookup2: VfsLookup = Arc::new(|_| Ok(Box::new(TestFs)));
         let handler: Handler = Arc::new(|_, _| {
             CWD_MATCHED.fetch_add(1, Ordering::SeqCst);
-            Ok(())
+            HANDLER_SUCCESS
         });
         let sh2 = config("vfscwd2")
             .vfs_lookup(lookup2)

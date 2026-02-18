@@ -13,11 +13,14 @@ build: ## Build the project in debug mode
 release: ## Build the project in release mode
 	cargo build --release
 
+test-quiet: ## Run tests, quietly
+	cargo nextest run --status-level fail
+
 test: ## Run tests
-	cargo test
+	cargo nextest run
 
 test-release: ## Run tests in release mode
-	cargo test --release
+	cargo nextest run --release
 
 check-precommit:
 	@diff -uN .git/hooks/pre-commit .git-pre-commit-template || ( \
@@ -49,8 +52,9 @@ clean: ## Clean the build directory
 
 tools: ## Update the rust environment
 	rustup update
-	cargo install cargo-outdated
-	cargo install cargo-audit
+	cargo install --locked cargo-outdated
+	cargo install --locked cargo-audit
+	cargo install --locked cargo-nextest
 
 init-git: ## Install precommit hooks
 	install -m 755 .git-pre-commit-template .git/hooks/pre-commit

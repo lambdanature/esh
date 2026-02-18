@@ -202,16 +202,6 @@ internal bug.
 
 ## 5. Testing
 
-### 5.1 [INFO] Test coverage is good for a pre-release crate
-
-- **Unit tests:** `parse.rs` has 40+ tests covering all escape types, edge cases,
-  and error paths. `shell.rs` has 20+ tests covering the builder, handler chain,
-  VFS integration, and flags. `util.rs` has tests for `pluralize!`,
-  `get_cmd_basename`, and `init_tracing` idempotency.
-- **Integration tests:** `tests/cli.rs` has 15 end-to-end tests using
-  `assert_cmd`.
-- **Doc tests:** 4 passing doc tests on the parser functions.
-
 ### 5.2 [MEDIUM] Missing test coverage
 
 - **`shell_parse_arg` with non-UTF-8 bytes on Unix** — `\xFF` produces a raw

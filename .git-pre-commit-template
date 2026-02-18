@@ -19,6 +19,12 @@ if [ $? -ne 0 ]; then
     die "❌ Formatting or Clippy failed. Fix errors before committing."
 fi
 
+# Run Tests
+make test-quiet
+if [ $? -ne 0 ]; then
+    die "❌ Tests failed. Fix errors before committing."
+fi
+
 # Run Security Audit
 make audit
 if [ $? -ne 0 ]; then
