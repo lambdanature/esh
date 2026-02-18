@@ -1,7 +1,7 @@
 [package]
 name = "esh"
 version = "0.1.1-dev"
-edition = "2024"
+edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "Embeddable SHell - a Rust library for building interactive, command-driven CLI applications."
 repository = "https://github.com/lambdanature/esh"

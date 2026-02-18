@@ -143,15 +143,6 @@ The parser will happily process arbitrarily long input strings. For an
 embeddable shell that might accept user input over a network or IPC, consider
 adding configurable maximum input length.
 
-### 9.3 `edition = "2024"` is very new (LOW)
-
-Rust edition 2024 was stabilized recently. While this is fine for the project,
-it limits the potential user base to very recent Rust toolchains. Consider
-documenting the MSRV explicitly in `Cargo.toml` (`rust-version` field) and the
-README.
-
----
-
 ## 10. Build & Tooling
 
 ### 10.1 No CI/CD configuration (MEDIUM)

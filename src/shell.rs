@@ -373,7 +373,9 @@ pub struct ShellConfig {
 /// - `shell_config!("name")` — uses the given name explicitly.
 #[macro_export]
 macro_rules! shell_config {
-    ($name:expr) => {{ ShellConfig::new($name, env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")) }};
+    ($name:expr) => {{
+        ShellConfig::new($name, env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))
+    }};
 
     () => {{
         let name = esh::get_cmd_basename(env!("CARGO_BIN_NAME"));
