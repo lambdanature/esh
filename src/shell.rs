@@ -593,20 +593,15 @@ mod tests {
         static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
         let cmds: Augmentor = Arc::new(CustomCmds::augment_subcommands);
-        let handler: Handler = Arc::new(|_, m| {
-            match CustomCmds::from_arg_matches(m) {
-                Ok(CustomCmds::Greet) => {
-                    CALL_COUNT.fetch_add(1, Ordering::SeqCst);
-                    Ok(())
-                }
-                Err(_) => Err(ShellError::CommandNotFound),
+        let handler: Handler = Arc::new(|_, m| match CustomCmds::from_arg_matches(m) {
+            Ok(CustomCmds::Greet) => {
+                CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+                Ok(())
             }
+            Err(_) => Err(ShellError::CommandNotFound),
         });
 
-        let sh = config("custom")
-            .cli_cmds(cmds)
-            .cli_handler(handler)
-            .build();
+        let sh = config("custom").cli_cmds(cmds).cli_handler(handler).build();
         let result = sh.run_args(&[os("custom"), os("greet")]);
         assert!(result.is_ok());
         assert!(CALL_COUNT.load(Ordering::SeqCst) >= 1);
@@ -617,15 +612,14 @@ mod tests {
         static SECOND_CALLED: AtomicUsize = AtomicUsize::new(0);
 
         let first_handler: Handler = Arc::new(|_, _| Err(ShellError::CommandNotFound));
-        let second_handler: Handler = Arc::new(|_, m| {
-            match BasicSharedCommands::from_arg_matches(m) {
+        let second_handler: Handler =
+            Arc::new(|_, m| match BasicSharedCommands::from_arg_matches(m) {
                 Ok(BasicSharedCommands::Version) => {
                     SECOND_CALLED.fetch_add(1, Ordering::SeqCst);
                     Ok(())
                 }
                 Err(_) => Err(ShellError::CommandNotFound),
-            }
-        });
+            });
 
         let sh = config("chain")
             .cli_handler(first_handler)
@@ -641,8 +635,7 @@ mod tests {
     fn handler_chain_stops_on_non_command_not_found_error() {
         static SECOND_CALLED: AtomicUsize = AtomicUsize::new(0);
 
-        let failing_handler: Handler =
-            Arc::new(|_, _| Err(ShellError::Internal("fatal".into())));
+        let failing_handler: Handler = Arc::new(|_, _| Err(ShellError::Internal("fatal".into())));
         let second_handler: Handler = Arc::new(|_, _| {
             SECOND_CALLED.fetch_add(1, Ordering::SeqCst);
             Ok(())
@@ -738,11 +731,7 @@ mod tests {
             .cli_handler(handler)
             .build();
 
-        let result = sh.run_args(&[
-            os("augargs"),
-            os("--dry-run"),
-            os("version"),
-        ]);
+        let result = sh.run_args(&[os("augargs"), os("--dry-run"), os("version")]);
         assert!(result.is_ok());
         assert!(DRY_RUN_SEEN.load(Ordering::SeqCst) >= 1);
     }
@@ -751,8 +740,7 @@ mod tests {
 
     #[test]
     fn vfs_lookup_error_propagates() {
-        let lookup: VfsLookup =
-            Arc::new(|_| Err(ShellError::Internal("vfs init failed".into())));
+        let lookup: VfsLookup = Arc::new(|_| Err(ShellError::Internal("vfs init failed".into())));
         let sh = config("vfsfail").vfs_lookup(lookup).build();
         let result = sh.run_args(&[os("vfsfail"), os("version")]);
         match result {
@@ -815,11 +803,7 @@ mod tests {
     #[test]
     fn multiple_verbose_flags_accepted() {
         let sh = config("test-vvv").build();
-        let result = sh.run_args(&[
-            os("test-vvv"),
-            os("-vvv"),
-            os("version"),
-        ]);
+        let result = sh.run_args(&[os("test-vvv"), os("-vvv"), os("version")]);
         assert!(result.is_ok());
     }
 

@@ -71,14 +71,6 @@
 
 ## 4. Testing
 
-### 4.2 No tests for `util.rs` (MEDIUM)
-
-`get_cmd_basename`, `get_cmd_fallback`, `pluralize!`, and `die!` are untested.
-
-**Recommendation:** `pluralize!` and `get_cmd_basename` (with controlled env) are
-easily unit-testable. `die!` can be tested with `#[should_panic]` or by
-extracting the format logic.
-
 ### 4.3 No integration tests (MEDIUM)
 
 The `tests/` directory does not exist. The binary should be tested end-to-end
@@ -113,5 +105,4 @@ safety, but CI is essential for PRs and cross-platform validation.
 
 | **P1** | Add tests for `shell.rs` | 4.1 |
 | **P2** | Add integration tests | 4.3 |
-| **P2** | Add tests for `util.rs` | 4.2 |
 | **P2** | Set up CI/CD | 10.1 |
