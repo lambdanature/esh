@@ -108,34 +108,6 @@ multi-shell scenarios subtly incorrect.
 
 ## 1. Safety
 
-### 1.2 [MEDIUM] `clap::Error::exit()` bypasses destructors
-
-**File:** `src/shell.rs:311`
-
-```rust
-let matches = self
-    .build_cmd()
-    .try_get_matches_from(args)
-    .unwrap_or_else(|e| e.exit());
-```
-
-`clap::Error::exit()` calls `std::process::exit()`, which terminates the process
-without running destructors. If the `Mutex<Option<Box<dyn Vfs>>>` or any other
-resource requires cleanup (e.g. flushing buffers, releasing locks), it will be
-skipped. For a library crate, calling `process::exit()` is particularly
-problematic because the caller has no way to intercept the exit.
-
-**Recommendation:** Return `ShellError` from the parse failure instead:
-
-```rust
-let matches = self
-    .build_cmd()
-    .try_get_matches_from(args)
-    .map_err(|e| ShellError::Internal(e.to_string()))?;
-```
-
-This preserves the clap error message while giving callers control.
-
 ### 1.3 [MEDIUM] `die!` macro calls `process::exit(1)`
 
 **File:** `src/util.rs:52`

@@ -1,9 +1,12 @@
 use std::path::Path;
 
-use clap::{ArgAction, ArgMatches, Args, Command, FromArgMatches, Parser, Subcommand};
+use clap::{
+    error::ErrorKind, ArgAction, ArgMatches, Args, Command, FromArgMatches, Parser, Subcommand,
+};
 use thiserror::Error;
 
 use std::ffi::OsString;
+use std::process::ExitCode;
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 
 use tracing::{info, warn};
@@ -18,6 +21,10 @@ pub enum ShellError {
     /// The handler did not recognize the subcommand (try the next handler)
     #[error("Command not found")]
     CommandNotFound,
+
+    /// The supplied arguments could not be parsed
+    #[error("Argument error: {0}")]
+    ArgumentError(#[from] clap::Error),
 
     /// Catch-all for standard IO issues
     #[error("IO Error: {0}")]
@@ -34,7 +41,7 @@ pub trait Shell {
     ///
     /// Returns [`ShellError`] if argument parsing, tracing initialisation,
     /// VFS setup, or command dispatch fails.
-    fn run(&self) -> Result<(), ShellError>;
+    fn run(&self) -> Result<ExitCode, ShellError>;
 
     /// Run the shell with the given pre-parsed argument list.
     ///
@@ -42,7 +49,7 @@ pub trait Shell {
     ///
     /// Returns [`ShellError`] if tracing initialisation, VFS setup, or
     /// command dispatch fails.
-    fn run_args(&self, args: &[OsString]) -> Result<(), ShellError>;
+    fn run_args(&self, args: &[OsString]) -> Result<ExitCode, ShellError>;
 }
 
 type AugmentorFn = dyn Fn(Command) -> Command + Send + Sync;
@@ -191,7 +198,7 @@ enum BasicSharedCommands {
 fn handle_basic_shared_command(sh: &BasicShell, matches: &ArgMatches) -> Result<(), ShellError> {
     match BasicSharedCommands::from_arg_matches(matches) {
         Ok(BasicSharedCommands::Version) => {
-            println!("version {} {}", sh.pkg_name, sh.version);
+            println!("{} {}", sh.pkg_name, sh.version);
             Ok(())
         }
         Err(_) => Err(ShellError::CommandNotFound),
@@ -292,7 +299,7 @@ impl BasicShell {
 static INIT_LOGGING: OnceLock<Result<(), String>> = OnceLock::new();
 
 impl Shell for BasicShell {
-    fn run(&self) -> Result<(), ShellError> {
+    fn run(&self) -> Result<ExitCode, ShellError> {
         let mut args: Vec<OsString> = Vec::new();
         for arg in std::env::args() {
             let parsed = crate::parse::shell_parse_arg(&arg).unwrap_or_else(|e| {
@@ -304,14 +311,23 @@ impl Shell for BasicShell {
         self.run_args(&args)
     }
 
-    fn run_args(&self, args: &[OsString]) -> Result<(), ShellError> {
+    fn run_args(&self, args: &[OsString]) -> Result<ExitCode, ShellError> {
         // First, evaluate the actual command line using external argv.
         // Then we determine if we need to go into interactive mode or
         // directly execute a command from argv.
-        let matches = self
-            .build_cmd()
-            .try_get_matches_from(args)
-            .unwrap_or_else(|e| e.exit());
+        let matches = match self.build_cmd().try_get_matches_from(args) {
+            Ok(m) => m,
+            Err(e) => match e.kind() {
+                ErrorKind::DisplayHelp | ErrorKind::DisplayVersion => {
+                    print!("{}", e);
+                    return Ok(ExitCode::SUCCESS);
+                }
+                _ => {
+                    eprintln!("Invalid usage: {}", e.render());
+                    return Ok(ExitCode::from(2));
+                }
+            },
+        };
 
         let init_result = INIT_LOGGING.get_or_init(|| {
             crate::init_tracing(
@@ -344,8 +360,8 @@ impl Shell for BasicShell {
 
         for handler in &self.cli_group.hnds {
             match (handler)(self, &matches) {
-                Ok(()) => return Ok(()),
-                Err(ShellError::CommandNotFound) => {}
+                Ok(()) => return Ok(ExitCode::SUCCESS),
+                Err(ShellError::CommandNotFound) => continue, // Give next handler a chance
                 Err(e) => return Err(e),
             }
         }

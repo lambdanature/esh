@@ -8,6 +8,7 @@
 /// Note that in this example, the `-p` flag is trusted input —
 /// do not expose it to untrusted users for security sandboxing.
 use std::path::{Path, PathBuf};
+use std::process::ExitCode;
 use std::sync::Arc;
 
 use clap::{ArgMatches, Args, Parser};
@@ -57,7 +58,7 @@ fn create_vfs(matches: &ArgMatches) -> Result<Box<dyn Vfs>, ShellError> {
     Ok(Box::new(DirFsVfs(fs)))
 }
 
-fn main() -> Result<(), ShellError> {
+fn main() -> Result<ExitCode, ShellError> {
     let cfg = shell_config!()
         .cli_args(Arc::new(CliArgs::augment_args))
         .vfs_lookup(Arc::new(create_vfs));
